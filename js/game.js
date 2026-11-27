@@ -54,8 +54,8 @@
       this.score = 0;
       this.lives = C.LIVES + (this.char.extraLives || 0);
       this.totals = { chips: 0, kills: 0, modules: 0, deaths: 0, leaks: 0, bosses: 0 };
-      // Se começar mais à frente, já tem a arma do primeiro chefe.
-      this.weapons = { spread: z > 1 };
+      // Se começar mais à frente, já tem as armas dos chefes anteriores.
+      this.weapons = { spread: z > 1, laser: z > 3, homing: z > 4 };
       this.weapon = 'ecc';
       this.bombs = Math.min(C.BOMBS_MAX, C.BOMBS_START + (this.char.extraBombs || 0));
       this.startZone = z;
@@ -112,6 +112,10 @@
       this.shootCd = 0;
       this.heat = 0;
       this.overheat = false;
+      this.specialCd = 0;
+      this.shieldT = 0;
+      this.sprintT = 0;
+      this.soloT = 0;
       this.waves = [];
       this.bombItems = [];
       this.crumbles = new Map();
@@ -386,6 +390,10 @@
       }
       if (this.gcCooldown > 0) this.gcCooldown = Math.max(0, this.gcCooldown - dt);
       if (this.shootCd > 0) this.shootCd -= dt;
+      if (this.specialCd > 0) this.specialCd = Math.max(0, this.specialCd - dt);
+      if (this.shieldT > 0) this.shieldT = Math.max(0, this.shieldT - dt);
+      if (this.sprintT > 0) this.sprintT = Math.max(0, this.sprintT - dt);
+      if (this.soloT > 0) { this.soloT = Math.max(0, this.soloT - dt); this.heat = 0; this.overheat = false; }
       if (this.heat > 0) {
         this.heat = Math.max(0, this.heat - C.HEAT_COOL * dt);
         if (this.overheat && this.heat < 35) { this.overheat = false; this.emit('cooled'); }
@@ -427,7 +435,7 @@
 
       const ch = this.char;
       const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-      let top = (this.dashTime > 0 ? C.BOOST_TOP : C.TOP) * ch.speed;
+      let top = (this.dashTime > 0 ? C.BOOST_TOP : C.TOP) * ch.speed * (this.sprintT > 0 ? 1.6 : 1);
       if (p.mud) top *= C.MUD_SPEED;
       // No gelo acelera-se e trava-se muito pior (escorrega).
       const acc = C.ACC * (p.ice ? 0.32 : 1), fric = C.FRICTION * (p.ice ? 0.08 : 1);
@@ -567,7 +575,7 @@
         }
         if (p.dead || !overlap(p, e)) continue;
         const stomp = p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12;
-        if (this.dashTime > 0) { this.killEnemy(e, 'dash'); continue; }
+        if (this.dashTime > 0 || this.sprintT > 0) { this.killEnemy(e, 'dash'); continue; }
         if (this.char.bugTouch && e.type === 'bug') { this.killEnemy(e, 'debug'); continue; }
         if (e.type === 'spiky') { this.hurt(false, e); if (this.state !== 'playing' || p.dead) return; continue; }
         if (stomp || p.ball) {
@@ -663,10 +671,12 @@
           this.arenaLocked = false;
           this.waves.length = 0;
           this.emit('bossDefeated', { x: b.x + b.w / 2, y: b.y + b.h / 2, kind: b.kind });
-          if (b.kind === 'leak' && !this.weapons.spread) {
-            this.weapons.spread = true;
-            this.weapon = 'spread';
-            this.emit('unlock', { weapon: 'spread' });
+          // Cada chefe dá uma arma nova.
+          const prize = { leak: 'spread', worm: 'laser', hive: 'homing' }[b.kind];
+          if (prize && !this.weapons[prize]) {
+            this.weapons[prize] = true;
+            this.weapon = prize;
+            this.emit('unlock', { weapon: prize });
           }
         }
         return;
@@ -711,7 +721,7 @@
       const touchable = !ai || !ai.canTouch || ai.canTouch(b);
       if (!p.dead && touchable && overlap(p, this.bossBox(b))) {
         const stomp = b.kind === 'leak' && p.vy > 0 && p.y + p.h - p.vy * dt <= b.y + 26;
-        if (this.dashTime > 0 || stomp) {
+        if (this.dashTime > 0 || this.sprintT > 0 || stomp) {
           if (b.dashHitCd <= 0) { b.dashHitCd = 0.5; this.bossHit(stomp ? 3 : 4, p.x + p.w / 2, p.y + p.h, true); }
           if (stomp) { p.vy = -900; p.ball = true; p.airJumps = this.char.airJumps; p.jumped = false; }
           else { p.vx = (p.x + p.w / 2 < b.x + b.w / 2 ? -1 : 1) * 420; p.vy = -500; }
@@ -872,21 +882,30 @@
       if (this.state !== 'playing' || p.dead) return;
       if (this.shootCd > 0) return;
       if (this.overheat) { this.emit('denied', { what: 'heat' }); this.shootCd = 0.25; return; }
-      const spread = this.weapon === 'spread' && this.weapons.spread;
-      this.shootCd = (spread ? 0.28 : C.SHOOT_CD) * (this.char.fireMul || 1);
+      if (!this.weapons[this.weapon] && this.weapon !== 'ecc') this.weapon = 'ecc';
+      const W = RR.WEAPONS[this.weapon];
+      const solo = this.soloT > 0;
+      this.shootCd = W.cd * (this.char.fireMul || 1) * (solo ? 0.4 : 1);
       const sx = p.x + p.w / 2 + p.facing * 12, sy = p.y + 14;
       let ang = p.facing > 0 ? 0 : Math.PI;
       if (this.input.down && !p.onGround) ang += p.facing * 0.7;
       const b = this.boss;
-      if (this.arenaLocked && b && (b.state === 'fight' || b.state === 'intro')) {
-        const tx = b.x + b.w / 2 + (Math.random() - 0.5) * b.w * 0.5, ty = b.y + b.h / 2;
+      if (this.arenaLocked && b && (b.state === 'fight' || b.state === 'intro') && !W.homing) {
+        const box = this.bossBox(b);
+        const tx = box.x + box.w / 2 + (Math.random() - 0.5) * box.w * 0.5, ty = box.y + box.h / 2;
         ang = Math.atan2(ty - sy, tx - sx);
         p.facing = Math.cos(ang) >= 0 ? 1 : -1;
       }
-      const angles = spread ? [ang - 0.2, ang, ang + 0.2] : [ang];
-      for (const a of angles) this.shots.push({ x: sx, y: sy, vx: Math.cos(a) * C.SHOT_SPEED, vy: Math.sin(a) * C.SHOT_SPEED, life: 1.1, spread });
+      const angles = W.count === 3 ? [ang - 0.2, ang, ang + 0.2] : [ang];
+      for (const a of angles) {
+        this.shots.push({
+          x: sx, y: sy, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, life: W.life,
+          kind: this.weapon, dmg: W.dmg, pierce: !!W.pierce, homing: !!W.homing, hit: W.pierce ? [] : null,
+        });
+      }
       p.shootFlash = 0.08;
-      this.heat += (spread ? C.HEAT_SPREAD : C.HEAT_ECC) * (this.arenaLocked ? 0.55 : 1) * (this.char.heatMul || 1);
+      if (!solo) this.heat += W.heat * (this.arenaLocked ? 0.55 : 1) * (this.char.heatMul || 1);
+      const spread = this.weapon === 'spread';
       if (this.heat >= 100) {
         this.heat = 100;
         this.overheat = true;
@@ -896,11 +915,44 @@
       this.emit('shoot', { x: sx, y: sy, spread });
     }
 
+    unlockedWeapons() { return Object.keys(RR.WEAPONS).filter((w) => w === 'ecc' || this.weapons[w]); }
+
     switchWeapon() {
       if (this.state !== 'playing') return;
-      if (!this.weapons.spread) { this.emit('denied', { what: 'weapon' }); return; }
-      this.weapon = this.weapon === 'ecc' ? 'spread' : 'ecc';
+      const list = this.unlockedWeapons();
+      if (list.length < 2) { this.emit('denied', { what: 'weapon' }); return; }
+      this.weapon = list[(list.indexOf(this.weapon) + 1) % list.length];
       this.emit('weapon', { weapon: this.weapon });
+    }
+
+    setWeapon(id) {
+      if (this.state !== 'playing' || this.weapon === id) return;
+      if (id !== 'ecc' && !this.weapons[id]) { this.emit('denied', { what: 'weapon' }); return; }
+      this.weapon = id;
+      this.emit('weapon', { weapon: id });
+    }
+
+    // Habilidade especial da personagem (tecla V).
+    special() {
+      const p = this.player;
+      if (this.state !== 'playing' || p.dead) return;
+      const sp = this.char.special;
+      if (!sp) return;
+      if (this.specialCd > 0) { this.emit('denied', { what: 'special' }); return; }
+      this.specialCd = sp.cd;
+      const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+      if (sp.id === 'shield') this.shieldT = 4;
+      else if (sp.id === 'sprint') { this.sprintT = 3.5; p.vx = p.facing * Math.max(Math.abs(p.vx), 700); }
+      else if (sp.id === 'zen') { this.ram += 12; p.invuln = Math.max(p.invuln, 2); }
+      else if (sp.id === 'solo') this.soloT = 4;
+      else if (sp.id === 'overload') { this.energy = 100; this.gcCooldown = 0; this.heat = 0; this.overheat = false; this.emit('energyFull'); }
+      else if (sp.id === 'debug') {
+        for (const e of this.enemies) if (e.alive && Math.abs(e.x - cx) < 700 && Math.abs(e.y - cy) < 500) this.killEnemy(e, 'debug');
+        this.bullets.length = 0;
+        const b = this.boss;
+        if (b && b.state === 'fight') this.bossHit(6, b.x + b.w / 2, b.y + b.h / 2, true);
+      }
+      this.emit('special', { id: sp.id, name: sp.name, x: cx, y: cy });
     }
 
     // Bomba de Refresh: como o refresh da DRAM, "reescreve" tudo à volta.
@@ -931,13 +983,39 @@
       // Disparos ECC do jogador
       for (let i = this.shots.length - 1; i >= 0; i--) {
         const s = this.shots[i];
+        // Mísseis Prefetch: viram-se para o alvo mais próximo (o chefe tem prioridade).
+        if (s.homing) {
+          let tx = null, ty = null, best = 640;
+          const b = this.boss;
+          if (b && b.state === 'fight') { const bx = this.bossBox(b); tx = bx.x + bx.w / 2; ty = bx.y + bx.h / 2; }
+          else {
+            for (const e of this.enemies) {
+              if (!e.alive) continue;
+              const d = Math.hypot(e.x + e.w / 2 - s.x, e.y + e.h / 2 - s.y);
+              if (d < best) { best = d; tx = e.x + e.w / 2; ty = e.y + e.h / 2; }
+            }
+          }
+          if (tx != null) {
+            const cur = Math.atan2(s.vy, s.vx), want = Math.atan2(ty - s.y, tx - s.x);
+            let diff = want - cur;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            const a = cur + Math.max(-6 * dt, Math.min(6 * dt, diff));
+            const sp = Math.hypot(s.vx, s.vy);
+            s.vx = Math.cos(a) * sp; s.vy = Math.sin(a) * sp;
+          }
+        }
         s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
         let dead = s.life <= 0 || this.solidAt(Math.floor(s.x / T), Math.floor(s.y / T));
         if (!dead) {
           const box = { x: s.x - 6, y: s.y - 6, w: 12, h: 12 };
-          for (const e of this.enemies) if (e.alive && overlap(box, e)) { this.killEnemy(e, 'shot'); dead = true; break; }
+          for (const e of this.enemies) {
+            if (!e.alive || !overlap(box, e)) continue;
+            this.killEnemy(e, 'shot');
+            if (!s.pierce) { dead = true; break; } // o Laser DMA atravessa os inimigos
+          }
           const b = this.boss;
-          if (!dead && b && b.state === 'fight' && overlap(box, this.bossBox(b))) { this.bossHit(1, s.x, s.y); dead = true; }
+          if (!dead && b && b.state === 'fight' && overlap(box, this.bossBox(b))) { this.bossHit(s.dmg || 1, s.x, s.y); dead = true; }
           const ai = this.bossAI(b);
           if (!dead && ai && ai.blockers && b.state === 'fight') {
             for (const r of ai.blockers(b)) if (overlap(box, r)) { this.emit('deflect', { x: s.x, y: s.y }); dead = true; this.hint('worm'); break; }
@@ -1158,7 +1236,7 @@
 
     hurt(spikes, src) {
       const p = this.player;
-      if (p.dead || p.invuln > 0 || this.dashTime > 0) return;
+      if (p.dead || p.invuln > 0 || this.dashTime > 0 || this.shieldT > 0 || this.sprintT > 0) return;
       if (this.ram <= 0) { this.die(spikes ? 'spikes' : 'enemy'); return; }
       // A Capivara Zen só perde metade da RAM.
       const lost = this.char.keepHalf ? Math.ceil(this.ram / 2) : this.ram;

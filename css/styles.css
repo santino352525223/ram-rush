@@ -159,6 +159,12 @@ body.in-game .hud { visibility: visible; opacity: 1; pointer-events: auto; }
 .ab-text { display: flex; flex-direction: column; line-height: 1.15; }
 .ab-text b { font-size: 12px; white-space: nowrap; }
 .ab-text small { font-size: 10.5px; color: var(--muted); font-family: var(--f-mono); }
+.char-special { font-size: 11px; line-height: 1.35; color: #ffe08a; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(255, 255, 255, 0.12); }
+.ability.special .key { color: var(--gold); }
+.ability.special.ready { border-color: rgba(255, 209, 102, 0.7); }
+.ability.special.ready .key { background: rgba(255, 209, 102, 0.22); border-color: var(--gold); }
+.tbtn.specialb { border-color: rgba(255, 209, 102, 0.7); color: var(--gold); }
+.ability.special::after,
 .ability.gc::after {
   content: '';
   position: absolute; inset: 0;
@@ -625,7 +631,6 @@ body.boss-fight .toasts { top: 140px; }
 .rank-table td { padding: 9px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
 .rank-table td:nth-child(2) { font-weight: 800; color: #fff; text-align: left; }
 .rank-table td:nth-child(3) { font-family: var(--f-mono); color: var(--gold); font-weight: 700; }
-.rank-table tbody tr:nth-child(1) td { font-size: 16px; }
 .rank-table tr.me td { background: rgba(125, 255, 181, 0.12); }
 .rank-table tr.me td:first-child { box-shadow: inset 3px 0 0 var(--green); }
 .rank-table .empty { color: var(--muted); padding: 24px; }
@@ -643,6 +648,25 @@ body.boss-fight .toasts { top: 140px; }
 .sw.ice { background: linear-gradient(135deg, #e0fbff, #5aaad2); }
 .sw.crumble { background: repeating-linear-gradient(90deg, #6d5e94 0 5px, #2c2736 5px 6px); }
 .sw.dark { background: radial-gradient(circle, #7fffe1 10%, #000 70%); }
+
+/* ------------------------------------------------- Ranking (abas, páginas) */
+.rank-tabs { display: flex; justify-content: center; gap: 8px; margin: 6px 0 4px; }
+.rank-tab { padding: 8px 16px; border-radius: 99px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); font-weight: 800; cursor: pointer; }
+.rank-tab.active { background: linear-gradient(90deg, var(--cyan), var(--magenta)); color: #050a18; border-color: transparent; }
+.rank-status { min-height: 18px; font-size: 12.5px; color: var(--gold); }
+.rank-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.rank-pager .btn:disabled { opacity: .35; cursor: not-allowed; }
+.rank-goto { display: flex; align-items: center; gap: 6px; }
+.rank-goto input { width: 90px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.35); color: #fff; font: 700 13px var(--f-mono); user-select: text; -webkit-user-select: text; }
+.rank-me {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px;
+  margin-top: 12px; padding: 10px 14px; border-radius: 14px;
+  background: rgba(125, 255, 181, 0.1); border: 1px solid rgba(125, 255, 181, 0.45); font-size: 14px;
+}
+.rank-me-pos { font-family: var(--f-title); font-weight: 900; font-size: 18px; color: var(--green); }
+.rank-me-name { font-weight: 700; color: #fff; }
+.rank-me-score { font-family: var(--f-mono); font-weight: 700; color: var(--gold); }
+.world-rank { margin-top: 6px; font-size: 13.5px; color: #9be7ff; }
 
 /* ------------------------------------------------------ Conta de jogador */
 .login-screen { z-index: 80; background: radial-gradient(ellipse at 50% 0%, rgba(76, 201, 255, 0.2), transparent 60%), rgba(4, 7, 16, 0.92); }

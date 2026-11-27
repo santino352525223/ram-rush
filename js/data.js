@@ -50,6 +50,14 @@
     BOSS_HP: 90,
   };
 
+  // Armas (desbloqueiam-se ao vencer chefes). cd = tempo entre disparos, heat = aquecimento.
+  RR.WEAPONS = {
+    ecc:    { name: 'Canhão ECC', short: 'ECC', cd: 0.17, heat: 9, speed: 900, life: 1.1, dmg: 1, count: 1, desc: 'Disparo rápido. Nas arenas procura o chefe.' },
+    spread: { name: 'Dual Channel ×3', short: '×3', cd: 0.28, heat: 18, speed: 900, life: 1.0, dmg: 1, count: 3, desc: '3 pacotes em leque. Prémio do Rei das Fugas.' },
+    laser:  { name: 'Laser DMA', short: 'DMA', cd: 0.34, heat: 15, speed: 1700, life: 0.5, dmg: 2, count: 1, pierce: true, desc: 'Atravessa todos os inimigos (acesso direto à memória). Prémio do Verme.' },
+    homing: { name: 'Mísseis Prefetch', short: 'PRE', cd: 0.42, heat: 16, speed: 520, life: 2.4, dmg: 3, count: 1, homing: true, desc: 'Teleguiados: adivinham onde está o alvo (como o prefetch da cache). Prémio da Colmeia.' },
+  };
+
   // Chefes (um por arena). hp = pontos de integridade.
   RR.BOSSES = {
     leak:   { name: 'REI DAS FUGAS', subtitle: 'Uma fuga de memória gigante que nunca liberta nada!', hp: 70, w: 150, h: 110 },

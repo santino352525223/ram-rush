@@ -8,7 +8,8 @@
   const KEY_RANK = 'ramrush.ranking.v2';
   const KEY_PROFILES = 'ramrush.profiles.v1';
   const KEY_CURRENT = 'ramrush.current.v1';
-  const MAX = 10;
+  const MAX = 10;        // o ranking mostra o top 10…
+  const STORE = 10000;   // …mas guarda (e deixa ver) até ao top 10 000
 
   function read(key, fallback) {
     try {
@@ -68,12 +69,24 @@
     },
     best() { const l = this.list(); return l.length ? l[0].score : 0; },
     positionOf(name) { return this.list().findIndex((e) => keyOf(e.name) === keyOf(name)); },
+    all() {
+      const l = read(KEY_RANK, []);
+      return Array.isArray(l) ? l.filter((e) => e && typeof e.score === 'number').sort((a, b) => b.score - a.score) : [];
+    },
+    // Páginas para o ecrã de ranking (até ao top 10 000).
+    page(offset, n) { return this.all().slice(offset, offset + n); },
+    count() { return Math.min(STORE, this.all().length); },
+    entryOf(name) {
+      const l = this.all();
+      const i = l.findIndex((e) => keyOf(e.name) === keyOf(name));
+      return i >= 0 ? { entry: l[i], rank: i } : null;
+    },
     // Regista automaticamente a pontuação. Devolve a posição (0..9) ou -1.
     submit(name, score, data = {}) {
       const n = clean(name) || 'Anónimo';
       score = Math.round(score) || 0;
       if (score <= 0) return { rank: this.positionOf(n), improved: false };
-      const l = this.list();
+      const l = this.all();
       const i = l.findIndex((e) => keyOf(e.name) === keyOf(n));
       let improved = false;
       const entry = {
@@ -84,8 +97,9 @@
         if (score > l[i].score) { l[i] = entry; improved = true; }
       } else { l.push(entry); improved = true; }
       l.sort((a, b) => b.score - a.score);
-      write(KEY_RANK, l.slice(0, MAX));
-      return { rank: this.positionOf(n), improved };
+      write(KEY_RANK, l.slice(0, STORE));
+      const e = this.entryOf(n);
+      return { rank: e ? e.rank : -1, improved };
     },
     clear() { write(KEY_RANK, []); },
   };

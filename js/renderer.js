@@ -1268,23 +1268,45 @@
         ctx.restore();
       }
       // pacotes ECC do jogador
+      // [cor do rasto, cor do núcleo, comprimento, espessura]
+      const LOOK = {
+        ecc: ['76,201,255', 'rgba(120,230,255,0.8)', 26, 6],
+        spread: ['255,209,102', 'rgba(255,220,130,0.8)', 22, 5],
+        laser: ['255,79,216', 'rgba(255,140,240,0.9)', 70, 7],
+        homing: ['255,140,40', 'rgba(255,170,80,0.85)', 30, 5],
+      };
       ctx.globalCompositeOperation = 'lighter';
       for (const s of g.shots) {
+        const L = LOOK[s.kind] || LOOK.ecc;
         const sp = Math.hypot(s.vx, s.vy) || 1;
-        const tx = s.x - (s.vx / sp) * 26, ty = s.y - (s.vy / sp) * 26;
+        const tx = s.x - (s.vx / sp) * L[2], ty = s.y - (s.vy / sp) * L[2];
         const grd = ctx.createLinearGradient(tx, ty, s.x, s.y);
-        grd.addColorStop(0, 'rgba(76,201,255,0)');
-        grd.addColorStop(1, 'rgba(160,240,255,1)');
+        grd.addColorStop(0, `rgba(${L[0]},0)`);
+        grd.addColorStop(1, `rgba(${L[0]},1)`);
         ctx.strokeStyle = grd;
-        ctx.lineWidth = 6;
+        ctx.lineWidth = L[3];
         ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(s.x, s.y); ctx.stroke();
-        this.drawGlow(ctx, s.x, s.y, 16, 'rgba(120,230,255,0.8)');
+        if (s.kind === 'laser') { ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(s.x, s.y); ctx.stroke(); }
+        this.drawGlow(ctx, s.x, s.y, s.kind === 'laser' ? 22 : 16, L[1]);
+        if (s.kind === 'homing' && Math.random() < 0.5) this.fx.burst(tx, ty, '#ffb35c', 1, 30, 0.35, 2);
       }
       ctx.globalCompositeOperation = 'source-over';
       for (const s of g.shots) {
+        if (s.kind === 'homing') {
+          ctx.save();
+          ctx.translate(s.x, s.y);
+          ctx.rotate(Math.atan2(s.vy, s.vx));
+          ctx.fillStyle = '#e8eefc';
+          ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-6, -4); ctx.lineTo(-6, 4); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#ff7a1a';
+          ctx.fillRect(-8, -2, 3, 4);
+          ctx.restore();
+          continue;
+        }
+        if (s.kind === 'laser') continue;
         ctx.font = `800 7px ${MONO}`;
-        ctx.fillStyle = '#062033';
+        ctx.fillStyle = s.kind === 'spread' ? '#3a2600' : '#062033';
         ctx.fillText('ECC', s.x, s.y + 0.5);
       }
       ctx.restore();
@@ -1476,6 +1498,19 @@
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       this.drawGlow(ctx, cx, by - 20, dash ? 70 : 48, dash ? 'rgba(255,79,216,0.5)' : 'rgba(76,201,255,0.35)');
+      // auras das habilidades especiais
+      if (g.sprintT > 0) this.drawGlow(ctx, cx, by - 20, 80, 'rgba(255,200,80,0.55)');
+      if (g.soloT > 0) this.drawGlow(ctx, cx, by - 20, 64, 'rgba(120,160,255,0.5)');
+      if (g.shieldT > 0 && !p.dead) {
+        const a = 0.55 + 0.25 * Math.sin(t * 14);
+        ctx.strokeStyle = `rgba(125,255,181,${a})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) { const ang = k * Math.PI / 3 + t; ctx.lineTo(cx + Math.cos(ang) * 30, by - 20 + Math.sin(ang) * 30); }
+        ctx.closePath();
+        ctx.stroke();
+        this.drawGlow(ctx, cx, by - 20, 40, 'rgba(125,255,181,0.25)');
+      }
       ctx.restore();
 
       ctx.save();
@@ -1786,7 +1821,13 @@
           fx.text(d.x, d.y - 40, 'MEMÓRIA REPARADA! +10 000', '#ffe08a', 22, 2.4);
           break;
         case 'unlock':
-          fx.text(g.player.x + 12, g.player.y - 60, 'NOVA ARMA: DISPARO DUAL CHANNEL', '#ffd166', 16, 2.6);
+          fx.text(g.player.x + 12, g.player.y - 60, 'NOVA ARMA: ' + RR.WEAPONS[d.weapon].name.toUpperCase(), '#ffd166', 16, 2.6);
+          break;
+        case 'special':
+          fx.ring(d.x, d.y, '#ffd166', 110, 0.6, 5);
+          fx.burst(d.x, d.y, '#fff3a0', 30, 280, 0.6, 2.6);
+          fx.text(d.x, d.y - 54, '★ ' + d.name.toUpperCase(), '#ffe08a', 18, 1.6);
+          if (d.id === 'debug') { fx.flash('255,240,150', 0.3); fx.ring(d.x, d.y, '#fff', 600, 0.7, 6); }
           break;
         default:
           break;

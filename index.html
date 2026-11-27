@@ -39,6 +39,9 @@
       </div>
 
       <div class="hud-group right">
+        <button id="btn-special" class="ability special" title="V · Habilidade especial da tua personagem">
+          <span class="key">V</span><span class="ab-text"><b id="special-name">Especial</b><small id="special-sub">Pronto (V)</small></span>
+        </button>
         <button id="btn-gc" class="ability gc" title="Q · Garbage Collector: elimina os inimigos próximos">
           <span class="key">Q</span><span class="ab-text"><b>Garbage Collector</b><small id="gc-sub">Pronto (Q)</small></span>
         </button>
@@ -70,6 +73,9 @@
       </div>
       <div class="tpad">
         <div class="tcol">
+          <button class="tbtn small specialb" data-act="special" aria-label="Habilidade especial">★</button>
+        </div>
+        <div class="tcol">
           <button class="tbtn small gcb" data-act="gc" aria-label="Garbage Collector">Q</button>
           <button class="tbtn small bombb" data-act="bomb" aria-label="Bomba de Refresh">💣</button>
         </div>
@@ -86,6 +92,8 @@
       <span><kbd>Espaço</kbd> saltar (2× no ar)</span>
       <span><kbd>F</kbd> disparar</span>
       <span><kbd>B</kbd> bomba</span>
+      <span><kbd>V</kbd> especial</span>
+      <span><kbd>1</kbd>–<kbd>4</kbd> armas</span>
       <span><kbd>E</kbd> Dual Channel</span>
       <span><kbd>Q</kbd> Garbage Collector</span>
       <span><kbd>P</kbd> pausa</span>
@@ -175,13 +183,25 @@
     <!-- ===================== Ranking TOP 10 ===================== -->
     <section id="screen-rank" class="overlay rank-screen" aria-hidden="true">
       <div class="panel rank-panel">
-        <div class="crash-code ok">MEMÓRIA PERMANENTE · TOP 10</div>
+        <div class="crash-code ok">MEMÓRIA PERMANENTE · RANKING</div>
         <h2>🏆 Ranking dos melhores</h2>
+        <div class="rank-tabs">
+          <button id="rank-tab-online" class="rank-tab">🌍 Mundial</button>
+          <button id="rank-tab-local" class="rank-tab">💻 Este computador</button>
+        </div>
+        <div class="rank-status" id="rank-status"></div>
         <table class="rank-table">
           <thead><tr><th>#</th><th>Jogador</th><th>Pontos</th><th>Zona</th><th>Personagem</th><th>Data</th></tr></thead>
           <tbody id="rank-body"></tbody>
         </table>
-        <p class="muted small-note">Cada jogador aparece uma vez, com a sua melhor pontuação. O ranking fica guardado neste navegador, neste computador.</p>
+        <div class="rank-pager">
+          <button id="rank-prev" class="btn small-btn">◀ Anteriores</button>
+          <span id="rank-range">1–10</span>
+          <button id="rank-next" class="btn small-btn">Seguintes ▶</button>
+          <form id="rank-goto-form" class="rank-goto"><label>Ir para #</label><input id="rank-goto" type="number" min="1" max="10000" placeholder="1–10000"><button class="btn small-btn" type="submit">Ver</button></form>
+        </div>
+        <div class="rank-me" id="rank-me"></div>
+        <p class="muted small-note" id="rank-note">Cada jogador aparece uma vez, com a sua melhor pontuação.</p>
         <div class="panel-actions">
           <button id="btn-rank-back" class="btn primary">◀ Voltar</button>
         </div>
@@ -202,7 +222,8 @@
               <li><span><kbd>Espaço</kbd> / <kbd>W</kbd> / <kbd>↑</kbd></span> Saltar · prime outra vez no ar para o <b>salto duplo</b></li>
               <li><span><kbd>↓</kbd> / <kbd>S</kbd> no ar</span> Cair depressa (e disparar na diagonal)</li>
               <li><span><kbd>F</kbd> / <kbd>X</kbd> / <kbd>J</kbd></span> Disparar pacotes ECC</li>
-              <li><span><kbd>Tab</kbd> / <kbd>1</kbd> <kbd>2</kbd></span> Trocar de arma</li>
+              <li><span><kbd>Tab</kbd> / <kbd>1</kbd>–<kbd>4</kbd></span> Trocar de arma</li>
+              <li><span><kbd>V</kbd> / <kbd>Z</kbd></span> Habilidade especial da personagem</li>
               <li><span><kbd>B</kbd> / <kbd>C</kbd></span> Bomba de Refresh</li>
               <li><span><kbd>E</kbd> / <kbd>Shift</kbd></span> Dual Channel (energia a 100 %)</li>
               <li><span><kbd>Q</kbd></span> Garbage Collector</li>
@@ -221,6 +242,8 @@
             <ul class="keys">
               <li><span>Canhão ECC</span> Disparo rápido. Sobreaquece se não parares!</li>
               <li><span>Disparo Dual Channel</span> 3 pacotes em leque. Desbloqueia ao vencer o 1.º chefe</li>
+              <li><span>Laser DMA</span> Atravessa todos os inimigos. Prémio do Verme do Buffer Overflow</li>
+              <li><span>Mísseis Prefetch</span> Teleguiados e fortes. Prémio da Colmeia de Malware</li>
               <li><span>Bomba de Refresh</span> Limpa inimigos e projéteis à volta e fere os chefes</li>
             </ul>
           </div>
@@ -348,6 +371,8 @@
   <script src="js/data.js"></script>
   <script src="js/characters.js"></script>
   <script src="js/ranking.js"></script>
+  <script src="js/online-config.js"></script>
+  <script src="js/online.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/particles.js"></script>
   <script src="js/bosses.js"></script>

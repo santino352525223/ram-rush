@@ -65,6 +65,7 @@
       $('btn-dash').addEventListener('click', (e) => { e.currentTarget.blur(); this.audio.unlock(); this.game.dash(); });
       $('btn-gc').addEventListener('click', (e) => { e.currentTarget.blur(); this.audio.unlock(); this.game.garbageCollect(); });
       $('weapon-box').addEventListener('click', () => this.game.switchWeapon());
+      $('btn-special').addEventListener('click', (e) => { e.currentTarget.blur(); this.audio.unlock(); this.game.special(); });
 
       this.renderMute();
       this.el['title-best'].textContent = this.fmt(this.bestScore());
@@ -148,8 +149,11 @@
         chips: (p.chips || 0) + (g.totals.chips || 0),
         bosses: Math.max(p.bosses || 0, g.totals.bosses || 0),
       });
-      const res = RR.Ranking.submit(p.name, g.score, { zone: g.levelIndex + 1, char: g.charId, won });
+      const data = { zone: g.levelIndex + 1, char: g.charId, won };
+      const res = RR.Ranking.submit(p.name, g.score, data);
       res.personal = personal;
+      // Envia também para o ranking mundial (em segundo plano).
+      if (RR.Online.enabled()) res.online = RR.Online.submit(p.name, g.score, data).catch(() => null);
       return res;
     }
 
@@ -160,6 +164,16 @@
       else if (res.rank >= 0) msg.innerHTML = `<b></b> continua no TOP 10 em <b>#${res.rank + 1}</b>.`;
       else msg.innerHTML = '<b></b>: ainda não chegou ao TOP 10. Tenta outra vez!';
       msg.querySelector('b').textContent = this.playerName();
+      if (res.online) {
+        const w = document.createElement('div');
+        w.className = 'world-rank';
+        w.textContent = '🌍 A enviar para o ranking mundial…';
+        msg.appendChild(w);
+        res.online.then((o) => {
+          if (!o) { w.textContent = '🌍 Sem ligação: o ranking mundial fica para a próxima.'; return; }
+          w.textContent = o.rank >= 0 ? `🌍 Posição mundial: #${this.fmt(o.rank + 1)}${o.improved ? ' (novo recorde!)' : ''}` : '🌍 Ranking mundial atualizado';
+        });
+      }
     }
 
     // ------------------------------------------------- escolha de personagem
@@ -175,7 +189,8 @@
           `<div class="stat"><span>${k}</span><i>${'<b></b>'.repeat(v)}${'<em></em>'.repeat(5 - v)}</i></div>`).join('');
         card.innerHTML = `<canvas width="240" height="200" aria-hidden="true"></canvas>
           <div class="char-name">${c.name}</div><div class="char-tag">${c.tagline}</div>
-          <div class="char-stats">${stats}</div><div class="char-desc">${c.desc}</div>`;
+          <div class="char-stats">${stats}</div><div class="char-desc">${c.desc}</div>
+          <div class="char-special">★ <b>${c.special.name}</b>: ${c.special.desc}</div>`;
         card.addEventListener('click', () => { this.sel = i; this.audio.unlock(); this.audio.play('ui'); this.renderChars(); });
         card.addEventListener('dblclick', () => this.startGame());
         grid.appendChild(card);
@@ -252,23 +267,94 @@
     }
 
     // ------------------------------------------------------------- ranking
-    openRanking(highlightName) {
-      const highlightKey = highlightName ? String(highlightName).toLowerCase() : null;
+    // Ecrã de ranking: mostra o top 10, deixa paginar até ao top 10 000 e
+    // mostra sempre a posição do jogador em baixo.
+    openRanking() {
       this.rankOpen = true;
+      this.rankOffset = 0;
+      if (!this.rankBound) {
+        this.rankBound = true;
+        $('rank-tab-online').addEventListener('click', () => this.setRankSource('online'));
+        $('rank-tab-local').addEventListener('click', () => this.setRankSource('local'));
+        $('rank-prev').addEventListener('click', () => this.rankGo(this.rankOffset - 10));
+        $('rank-next').addEventListener('click', () => this.rankGo(this.rankOffset + 10));
+        $('rank-goto-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const n = parseInt($('rank-goto').value, 10);
+          if (n >= 1) this.rankGo(Math.floor((Math.min(10000, n) - 1) / 10) * 10);
+          $('rank-goto').blur();
+        });
+      }
+      this.rankSource = RR.Online.enabled() ? (this.rankSource || 'online') : 'local';
+      $('rank-tab-online').style.display = RR.Online.enabled() ? '' : 'none';
+      this.show('screen-rank', true);
+      this.renderRanking();
+    }
+
+    setRankSource(src) { this.rankSource = src; this.rankOffset = 0; this.audio.play('ui'); this.renderRanking(); }
+    rankGo(off) { this.rankOffset = Math.max(0, Math.min(9990, off)); this.audio.play('move'); this.renderRanking(); }
+
+    async renderRanking() {
+      const token = (this.rankToken = (this.rankToken || 0) + 1);
+      const online = this.rankSource === 'online';
+      const off = this.rankOffset;
+      const me = this.playerName();
+      $('rank-tab-online').classList.toggle('active', online);
+      $('rank-tab-local').classList.toggle('active', !online);
+      $('rank-note').textContent = online
+        ? 'Ranking mundial: todos os jogadores do RAM RUSH. Cada conta aparece uma vez, com a sua melhor pontuação.'
+        : 'Ranking deste computador. Cada jogador aparece uma vez, com a sua melhor pontuação.';
+      const status = $('rank-status');
       const body = this.el['rank-body'];
-      const list = RR.Ranking.list();
+      let rows = [], total = 0, mine = null;
+      if (online) {
+        status.textContent = '⏳ A carregar o ranking mundial…';
+        try {
+          [rows, total, mine] = await Promise.all([RR.Online.page(off, 10), RR.Online.count(), RR.Online.me(me).catch(() => null)]);
+          status.textContent = '';
+        } catch (e) {
+          if (token !== this.rankToken) return;
+          status.textContent = '⚠ Sem ligação ao ranking mundial. A mostrar o ranking deste computador.';
+          this.rankSource = 'local';
+          return this.renderRanking();
+        }
+      } else {
+        status.textContent = '';
+        rows = RR.Ranking.page(off, 10);
+        total = RR.Ranking.count();
+        mine = RR.Ranking.entryOf(me);
+      }
+      if (token !== this.rankToken || !this.rankOpen) return;
+      total = Math.min(10000, total);
       body.innerHTML = '';
-      if (!list.length) body.innerHTML = '<tr><td colspan="6" class="empty">Ainda não há pontuações. Sê o primeiro!</td></tr>';
-      list.forEach((e, i) => {
+      if (!rows.length) body.innerHTML = `<tr><td colspan="6" class="empty">${off ? 'Não há mais jogadores nesta página.' : 'Ainda não há pontuações. Sê o primeiro!'}</td></tr>`;
+      rows.forEach((e, i) => {
+        const pos = off + i;
         const tr = document.createElement('tr');
-        if (highlightKey && e.name.toLowerCase() === highlightKey) tr.className = 'me';
-        const medal = ['🥇', '🥈', '🥉'][i] || (i + 1);
-        const ch = RR.getCharacter(e.char);
-        const cells = [medal, e.name, this.fmt(e.score), (e.won ? '🏆 ' : '') + e.zone, ch.name, e.date];
+        const isMe = mine && (online ? e.id === mine.entry.id : e.name.toLowerCase() === me.toLowerCase());
+        if (isMe) tr.className = 'me';
+        const medal = ['🥇', '🥈', '🥉'][pos] || (pos + 1);
+        const cells = [medal, e.name, this.fmt(e.score), (e.won ? '🏆 ' : '') + e.zone, RR.getCharacter(e.char).name, e.date];
         cells.forEach((v) => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
         body.appendChild(tr);
       });
-      this.show('screen-rank', true);
+      $('rank-range').textContent = total ? `${off + 1}–${Math.min(off + 10, total)} de ${this.fmt(total)}` : '—';
+      $('rank-prev').disabled = off <= 0;
+      $('rank-next').disabled = off + 10 >= total || off + 10 >= 10000;
+      // A tua posição, sempre visível em baixo (sem ter de a procurar).
+      const meBox = $('rank-me');
+      meBox.innerHTML = '';
+      if (mine) {
+        const pos = mine.rank + 1;
+        meBox.innerHTML = '<span class="rank-me-pos"></span><span class="rank-me-name"></span><span class="rank-me-score"></span><button class="btn small-btn" type="button">Ver a minha página</button>';
+        meBox.querySelector('.rank-me-pos').textContent = pos <= 3 ? ['🥇', '🥈', '🥉'][pos - 1] + ' #' + pos : '#' + this.fmt(pos);
+        meBox.querySelector('.rank-me-name').textContent = 'A tua posição · ' + mine.entry.name;
+        meBox.querySelector('.rank-me-score').textContent = this.fmt(mine.entry.score) + ' pts';
+        meBox.querySelector('button').addEventListener('click', () => this.rankGo(Math.floor(mine.rank / 10) * 10));
+      } else {
+        meBox.innerHTML = '<span class="rank-me-name"></span>';
+        meBox.querySelector('.rank-me-name').textContent = `${me}: ainda não tens pontuação ${online ? 'no ranking mundial' : 'neste computador'}. Joga uma partida!`;
+      }
     }
 
     closeRanking() {
@@ -433,7 +519,8 @@
           if (d.what === 'gc') this.toast(`Garbage Collector a recarregar (${Math.ceil(this.game.gcCooldown)} s)`, 'warn');
           else if (d.what === 'dash') this.toast('Energia insuficiente: apanha RAM e elimina inimigos', 'warn');
           else if (d.what === 'bomb') this.toast('Não tens Bombas de Refresh! Procura-as pelo nível', 'warn');
-          else if (d.what === 'weapon') this.toast('Ainda só tens o Canhão ECC. Vence o primeiro chefe para desbloquear outra arma', 'warn');
+          else if (d.what === 'weapon') this.toast('Essa arma ainda está bloqueada: vence mais chefes para a desbloquear', 'warn');
+          else if (d.what === 'special') this.toast(`Habilidade especial a recarregar (${Math.ceil(this.game.specialCd)} s)`, 'warn');
           break;
         case 'energyFull':
           this.el['btn-dash'].classList.add('flash');
@@ -447,8 +534,9 @@
         case 'bossIntro': this.bossBanner(d.boss); break;
         case 'bossPhase': this.toast(d.phase === 3 ? '⚠ O chefe entrou em fúria total!' : '⚠ O chefe ficou mais forte! Fase 2', 'bad'); break;
         case 'bossDefeated': this.toast('🏆 Chefe derrotado! O CPU está desbloqueado: vai até à meta', 'save', 4000); break;
-        case 'unlock': this.toast('🔓 Nova arma: Disparo Dual Channel (3 pacotes em leque). Troca com Tab', 'save', 4500); break;
-        case 'weapon': this.toast(d.weapon === 'spread' ? 'Arma: Disparo Dual Channel' : 'Arma: Canhão ECC', 'info', 1400); break;
+        case 'unlock': this.toast(`🔓 Nova arma: ${RR.WEAPONS[d.weapon].name}. ${RR.WEAPONS[d.weapon].desc} Troca com Tab ou 1–4`, 'save', 5000); break;
+        case 'weapon': this.toast('Arma: ' + RR.WEAPONS[d.weapon].name, 'info', 1400); break;
+        case 'special': this.toast(`★ ${d.name}!`, 'boost', 1600); break;
         default: break;
       }
     }
@@ -566,7 +654,15 @@
       this.set('zone', el['hud-zone'], g.def.name);
 
       // Arma, sobreaquecimento e bombas
-      this.set('weapon', el['hud-weapon'], g.weapon === 'spread' ? 'Dual Channel ×3' : 'Canhão ECC');
+      this.set('weapon', el['hud-weapon'], (RR.WEAPONS[g.weapon] || RR.WEAPONS.ecc).name);
+      const sp = g.char.special;
+      if (sp) {
+        const scd = g.specialCd;
+        this.set('spname', $('special-name'), sp.name);
+        this.set('spsub', $('special-sub'), scd > 0 ? `${Math.ceil(scd)} s` : 'Pronto (V)');
+        this.cls('sp', $('btn-special'), 'ready', scd <= 0);
+        $('btn-special').style.setProperty('--cd', (scd / sp.cd).toFixed(3));
+      }
       this.set('bombs', el['hud-bombs'], '💣×' + g.bombs);
       this.bar('heat', el['heat-fill'], g.heat / 100);
       this.cls('heat', el['weapon-box'], 'overheat', g.overheat);

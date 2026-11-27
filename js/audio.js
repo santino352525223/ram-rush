@@ -292,6 +292,7 @@
         case 'overheat': this.play('overheat'); break;
         case 'shield': this.play('page'); break;
         case 'weapon': this.play('ui'); break;
+        case 'special': this.play('boost'); break;
         case 'crumble': this.play('thud'); break;
         case 'bossTeleport': this.play('page'); break;
         case 'cleared': this.play('levelup'); break;

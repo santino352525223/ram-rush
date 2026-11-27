@@ -122,8 +122,11 @@
         case 'KeyQ': g.garbageCollect(); break;
         case 'KeyB': case 'KeyC': g.bomb(); break;
         case 'Tab': g.switchWeapon(); break;
-        case 'Digit1': if (g.weapon !== 'ecc') g.switchWeapon(); break;
-        case 'Digit2': if (g.weapon !== 'spread') g.switchWeapon(); break;
+        case 'Digit1': case 'Numpad1': g.setWeapon('ecc'); break;
+        case 'Digit2': case 'Numpad2': g.setWeapon('spread'); break;
+        case 'Digit3': case 'Numpad3': g.setWeapon('laser'); break;
+        case 'Digit4': case 'Numpad4': g.setWeapon('homing'); break;
+        case 'KeyV': case 'KeyZ': g.special(); break;
         default: break;
       }
     }
@@ -146,6 +149,7 @@
           if (act === 'dash') this.game.dash();
           else if (act === 'gc') this.game.garbageCollect();
           else if (act === 'bomb') this.game.bomb();
+          else if (act === 'special') this.game.special();
           else this.press(act, src);
         };
         const up = () => {

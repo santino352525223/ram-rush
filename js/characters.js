@@ -13,6 +13,7 @@
       desc: 'Equilibrado em tudo. Começa com uma Bomba de Refresh extra.',
       colors: { main: '#4cc9ff', dark: '#1a4fc0', light: '#bff0ff', accent: '#7dffb5' },
       speed: 1, jump: 1, airJumps: 1, fireMul: 1, heatMul: 1, energyMul: 1, extraLives: 0, extraBombs: 1,
+      special: { id: 'shield', name: 'Escudo ECC', desc: 'Fica invencível durante 4 s', cd: 18 },
       stats: { Velocidade: 3, Salto: 3, Resistência: 3, Poder: 3 },
     },
     {
@@ -20,6 +21,7 @@
       desc: 'O cão mais rápido da internet. A energia do Dual Channel enche 60 % mais depressa.',
       colors: { main: '#e8953a', dark: '#a85a1a', light: '#fff1de', accent: '#ffd166' },
       speed: 1.18, jump: 0.97, airJumps: 1, fireMul: 1, heatMul: 1, energyMul: 1.6, extraLives: 0, extraBombs: 0,
+      special: { id: 'sprint', name: 'Sprint Turbo', desc: 'Corre ×1,6 e destrói tudo em que toca (3,5 s)', cd: 16 },
       stats: { Velocidade: 5, Salto: 3, Resistência: 2, Poder: 3 },
     },
     {
@@ -27,6 +29,7 @@
       desc: 'Mais lenta, mas só perde metade da RAM quando é atingida e começa com +1 vida.',
       colors: { main: '#9a6b43', dark: '#5e3d22', light: '#c99a6c', accent: '#ff9f1a' },
       speed: 0.9, jump: 0.95, airJumps: 1, fireMul: 1, heatMul: 1, energyMul: 1, extraLives: 1, extraBombs: 0, keepHalf: true,
+      special: { id: 'zen', name: 'Banho Zen', desc: '+12 GB de RAM e invencível 2 s', cd: 24 },
       stats: { Velocidade: 2, Salto: 2, Resistência: 5, Poder: 3 },
     },
     {
@@ -34,6 +37,7 @@
       desc: 'O famoso "rubber duck debugging": salto triplo, plana ao manter o salto e elimina bugs só de lhes tocar.',
       colors: { main: '#ffd23a', dark: '#d99a00', light: '#fff4b8', accent: '#ff8a1a' },
       speed: 0.98, jump: 0.92, airJumps: 2, fireMul: 1.1, heatMul: 1, energyMul: 1, extraLives: 0, extraBombs: 0, glide: true, bugTouch: true,
+      special: { id: 'debug', name: 'Depuração Total', desc: 'Elimina os inimigos e projéteis à vista e fere o chefe', cd: 22 },
       stats: { Velocidade: 3, Salto: 5, Resistência: 3, Poder: 2 },
     },
     {
@@ -41,6 +45,7 @@
       desc: 'Dedos rápidos: dispara 30 % mais depressa e o canhão aquece muito menos.',
       colors: { main: '#9aa3b5', dark: '#5b6273', light: '#e6e9f0', accent: '#4c7dff' },
       speed: 1.05, jump: 1.05, airJumps: 1, fireMul: 0.7, heatMul: 0.6, energyMul: 1, extraLives: 0, extraBombs: 0,
+      special: { id: 'solo', name: 'Solo de Teclado', desc: 'Disparo super-rápido sem aquecer durante 4 s', cd: 20 },
       stats: { Velocidade: 4, Salto: 4, Resistência: 2, Poder: 5 },
     },
     {
@@ -48,6 +53,7 @@
       desc: 'Corre na roda e gera energia sozinho. O Garbage Collector recarrega 40 % mais depressa.',
       colors: { main: '#f0c08a', dark: '#b07a45', light: '#fff4e6', accent: '#ff7ab6' },
       speed: 1.08, jump: 1, airJumps: 1, fireMul: 1, heatMul: 1, energyMul: 1, extraLives: 0, extraBombs: 0, energyRegen: 5, gcMul: 0.6,
+      special: { id: 'overload', name: 'Sobrecarga', desc: 'Energia a 100 %, canhão frio e Garbage Collector pronto', cd: 24 },
       stats: { Velocidade: 4, Salto: 3, Resistência: 3, Poder: 4 },
     },
   ];
