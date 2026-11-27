@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>RAM RUSH: Cache &amp; Bus</title>
+  <meta name="description" content="Jogo de plataformas educativo sobre a memória RAM: corre com o BIT, apanha chips de RAM, elimina fugas de memória, derrota chefes e entrega os dados ao CPU.">
+  <meta name="theme-color" content="#070b18">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='16' width='52' height='30' rx='4' fill='%230b1426' stroke='%234cc9ff' stroke-width='3'/%3E%3Crect x='12' y='22' width='8' height='14' fill='%234cc9ff'/%3E%3Crect x='24' y='22' width='8' height='14' fill='%23ff4fd8'/%3E%3Crect x='36' y='22' width='8' height='14' fill='%23ffd166'/%3E%3Crect x='48' y='22' width='4' height='14' fill='%237dffb5'/%3E%3Cpath d='M10 46v6M16 46v6M22 46v6M28 46v6M38 46v6M44 46v6M50 46v6' stroke='%23e6b446' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Exo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Playfair+Display:ital,wght@1,500;1,600&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" aria-label="Mundo do jogo: o BIT corre pela placa-mãe a apanhar chips de RAM"></canvas>
+
+    <!-- ===================== HUD ===================== -->
+    <header id="hud" class="hud">
+      <div class="hud-group">
+        <div class="ram-box" id="hud-ram-box" title="RAM que levas. Se fores atingido perdes tudo: é volátil!">
+          <span class="ram-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="ram-num" id="hud-ram">0</span><span class="ram-unit">GB</span>
+        </div>
+        <div class="lives" title="Vidas">
+          <span class="bit-icon" aria-hidden="true"></span><span id="hud-lives">×3</span>
+        </div>
+        <div class="weapon-box" id="weapon-box" title="Arma (Tab troca) · Bombas de Refresh (B)">
+          <div class="weapon-name"><span id="hud-weapon">Canhão ECC</span> <b id="hud-bombs">💣×2</b></div>
+          <div class="bar heat"><i id="heat-fill"></i></div>
+        </div>
+      </div>
+
+      <div class="hud-center">
+        <div class="hud-zone"><b id="hud-level">ZONA 1</b> <span id="hud-zone">Zona da Placa-Mãe</span></div>
+        <div class="hud-score"><span id="hud-score">0</span></div>
+        <div class="hud-time">⏱ <span id="hud-time">0:00</span></div>
+      </div>
+
+      <div class="hud-group right">
+        <button id="btn-gc" class="ability gc" title="Q · Garbage Collector: elimina os inimigos próximos">
+          <span class="key">Q</span><span class="ab-text"><b>Garbage Collector</b><small id="gc-sub">Pronto (Q)</small></span>
+        </button>
+        <div class="energy" id="energy-box" title="Energia: apanha RAM e elimina inimigos para a carregar">
+          <div class="bar"><i id="energy-fill"></i></div>
+        </div>
+        <button id="btn-dash" class="ability dash" title="E · Dual Channel: velocidade ×2 e invencível">
+          <span class="key">E</span><span class="ab-text"><b>Dual Channel</b><small id="dash-sub">0 %</small></span>
+        </button>
+        <div class="hud-buttons">
+          <button id="btn-mute" class="icon-btn" title="Som (M)" aria-label="Silenciar">🔊</button>
+          <button id="btn-pause" class="icon-btn" title="Pausa (P / Esc)" aria-label="Pausa">⏸</button>
+          <button id="btn-help" class="icon-btn" title="Controlos e ajuda (H)" aria-label="Ajuda">?</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===================== Barra do chefe ===================== -->
+    <div id="boss-bar" class="boss-bar" aria-hidden="true">
+      <div class="boss-name"><span id="boss-name">CHEFE</span><small id="boss-phase">FASE 1</small></div>
+      <div class="bar"><i id="boss-fill"></i></div>
+    </div>
+
+    <!-- ===================== Controlos táteis ===================== -->
+    <div id="touch" class="touch" aria-hidden="true">
+      <div class="tpad">
+        <button class="tbtn" data-act="left" aria-label="Esquerda">◀</button>
+        <button class="tbtn" data-act="right" aria-label="Direita">▶</button>
+      </div>
+      <div class="tpad">
+        <div class="tcol">
+          <button class="tbtn small gcb" data-act="gc" aria-label="Garbage Collector">Q</button>
+          <button class="tbtn small bombb" data-act="bomb" aria-label="Bomba de Refresh">💣</button>
+        </div>
+        <div class="tcol">
+          <button class="tbtn small dashb" data-act="dash" aria-label="Dual Channel">E</button>
+          <button class="tbtn small shootb" data-act="shoot" aria-label="Disparar">✦</button>
+        </div>
+        <button class="tbtn jump" data-act="jump" aria-label="Saltar">⤒</button>
+      </div>
+    </div>
+
+    <div class="keys-hint" id="keys-hint">
+      <span><kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> correr</span>
+      <span><kbd>Espaço</kbd> saltar (2× no ar)</span>
+      <span><kbd>F</kbd> disparar</span>
+      <span><kbd>B</kbd> bomba</span>
+      <span><kbd>E</kbd> Dual Channel</span>
+      <span><kbd>Q</kbd> Garbage Collector</span>
+      <span><kbd>P</kbd> pausa</span>
+    </div>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <!-- ===================== Banner de zona / chefe ===================== -->
+    <div id="banner" class="banner" aria-live="polite">
+      <div class="banner-kicker" id="banner-kicker">ZONA 1</div>
+      <div class="banner-title" id="banner-title">Zona da Placa-Mãe</div>
+      <div class="banner-fact"><span>💡</span><span id="banner-fact"></span></div>
+    </div>
+
+    <!-- ===================== Título / Dedicatória ===================== -->
+    <section id="screen-title" class="overlay visible title-screen" aria-hidden="false">
+      <div class="title-wrap">
+        <div class="logo">
+          <div class="ram-stick" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <h1 class="game-title">RAM <span>RUSH</span></h1>
+          <div class="game-sub">Cache &amp; Bus</div>
+        </div>
+
+        <article class="dedication">
+          <div class="ded-kicker"><span></span>Dedicatória<span></span></div>
+          <blockquote class="ded-quote">“Helena Nogueira a melhor professora do mundo uma mulher extraodinaria e hermosa”</blockquote>
+          <p class="ded-text">
+            Professora Helena, obrigado de coração por cada aula, pela paciência infinita
+            e por nos ensinar a olhar para a tecnologia com curiosidade e paixão.
+            Este jogo nasceu da sua inspiração: cada bit desta memória guarda um pouco
+            de tudo o que aprendemos consigo.
+          </p>
+          <div class="ded-sign">Com carinho e admiração ♥</div>
+        </article>
+
+        <div class="title-actions">
+          <button id="btn-play" class="btn primary">▶ Jogar / Iniciar Jogo</button>
+          <button id="btn-title-help" class="btn ghost">Controlos e como jogar</button>
+        </div>
+        <div class="title-foot">
+          <span>Prime <kbd>Enter</kbd> para jogar</span>
+          <span>6 zonas · 3 chefes</span>
+          <span>Recorde: <b id="title-best">0</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Ajuda ===================== -->
+    <section id="screen-help" class="overlay help-screen" aria-hidden="true">
+      <div class="panel help-panel">
+        <h2>Como jogar</h2>
+        <p class="lead">És o <b>BIT</b>, um robô mensageiro de dados. Corre pela placa-mãe, <b>apanha os chips de RAM</b> espalhados pelo caminho e leva-os até ao <b>CPU</b> no fim de cada zona. São <b>6 zonas</b> e <b>3 chefes</b>: o Rei das Fugas, a Colmeia de Malware e o Módulo Corrompido.</p>
+
+        <div class="help-grid">
+          <div class="help-col">
+            <h3>⌨️ Teclado</h3>
+            <ul class="keys">
+              <li><span><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd></span> Correr</li>
+              <li><span><kbd>Espaço</kbd> / <kbd>W</kbd> / <kbd>↑</kbd></span> Saltar · prime outra vez no ar para o <b>salto duplo</b></li>
+              <li><span><kbd>↓</kbd> / <kbd>S</kbd> no ar</span> Cair depressa (e disparar na diagonal)</li>
+              <li><span><kbd>F</kbd> / <kbd>X</kbd> / <kbd>J</kbd></span> Disparar pacotes ECC</li>
+              <li><span><kbd>Tab</kbd> / <kbd>1</kbd> <kbd>2</kbd></span> Trocar de arma</li>
+              <li><span><kbd>B</kbd> / <kbd>C</kbd></span> Bomba de Refresh</li>
+              <li><span><kbd>E</kbd> / <kbd>Shift</kbd></span> Dual Channel (energia a 100 %)</li>
+              <li><span><kbd>Q</kbd></span> Garbage Collector</li>
+              <li><span><kbd>P</kbd> / <kbd>Esc</kbd> · <kbd>R</kbd></span> Pausa · Reiniciar o nível</li>
+              <li><span><kbd>M</kbd> · <kbd>H</kbd></span> Som · Ajuda</li>
+            </ul>
+          </div>
+          <div class="help-col">
+            <h3>🖱️ Rato / ecrã tátil</h3>
+            <ul class="keys">
+              <li><span>Clique no ecrã</span> Disparar</li>
+              <li><span>Botões Q e E</span> Habilidades (canto superior direito)</li>
+              <li><span>No telemóvel</span> Botões no ecrã: ◀ ▶ correr, ⤒ saltar, ✦ disparar, 💣 bomba</li>
+            </ul>
+            <h3>⚔️ Armas</h3>
+            <ul class="keys">
+              <li><span>Canhão ECC</span> Disparo rápido. Sobreaquece se não parares!</li>
+              <li><span>Disparo Dual Channel</span> 3 pacotes em leque. Desbloqueia ao vencer o 1.º chefe</li>
+              <li><span>Bomba de Refresh</span> Limpa inimigos e projéteis à volta e fere os chefes</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>🧠 O que representa cada coisa</h3>
+        <div class="legend">
+          <div><i class="sw chip"></i><b>Chip de RAM</b> Cada um vale 1 GB. A RAM é a memória de trabalho que alimenta o CPU.</div>
+          <div><i class="sw cpu"></i><b>CPU (meta)</b> Entrega lá os dados: o CPU só trabalha com o que está na RAM.</div>
+          <div><i class="sw hurt"></i><b>RAM volátil</b> Se fores atingido perdes a RAM: salta pelos ares e desaparece se não a apanhares.</div>
+          <div><i class="sw ssd"></i><b>Gravação SSD</b> Ponto de controlo: o armazenamento não se apaga; a RAM sim.</div>
+          <div><i class="sw leak"></i><b>Fuga de memória</b> Elimina-a e ela liberta a memória que retinha (chips extra).</div>
+          <div><i class="sw bug"></i><b>Bugs e malware</b> Erros que fazem perder dados. Salta-lhes em cima ou dispara!</div>
+          <div><i class="sw spiky"></i><b>Bug blindado</b> Tem espinhos: não lhe saltes em cima, dispara-lhe.</div>
+          <div><i class="sw turret"></i><b>Torre de malware</b> Dispara bits corrompidos (0 e 1).</div>
+          <div><i class="sw swap"></i><b>Paginação (areia laranja)</b> O disco usado como RAM: tudo fica muito mais lento.</div>
+          <div><i class="sw bus"></i><b>Barramento (setas)</b> Impulso à velocidade máxima, como a largura de banda.</div>
+          <div><i class="sw dual"></i><b>Dual Channel (E)</b> Dois canais em paralelo: velocidade ×2 e invencível uns segundos.</div>
+          <div><i class="sw gc"></i><b>Garbage Collector (Q)</b> Liberta a zona: elimina os inimigos próximos.</div>
+          <div><i class="sw ecc"></i><b>Pacotes ECC</b> Código de correção de erros: repara bits trocados.</div>
+          <div><i class="sw bomb"></i><b>Bomba de Refresh</b> Tal como o refresh da DRAM, reescreve tudo à tua volta.</div>
+          <div><i class="sw ddr"></i><b>Módulo DDR5</b> Colecionável escondido: +5 GB e 1000 pontos.</div>
+          <div><i class="sw spring"></i><b>Condensador</b> Mola que te atira para cima. A DRAM guarda cada bit num condensador.</div>
+        </div>
+        <div class="panel-actions">
+          <button id="btn-help-close" class="btn primary">Percebido!</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Pausa ===================== -->
+    <section id="screen-pause" class="overlay pause-screen" aria-hidden="true">
+      <div class="panel small">
+        <h2>Pausa</h2>
+        <p class="muted">A RAM guarda os dados… enquanto houver energia 😉</p>
+        <div class="panel-actions col">
+          <button id="btn-resume" class="btn primary">▶ Continuar (P)</button>
+          <button id="btn-pause-restart" class="btn">↻ Reiniciar nível (R)</button>
+          <button id="btn-pause-help" class="btn ghost">Controlos (H)</button>
+          <button id="btn-pause-menu" class="btn ghost">Menu principal</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Zona concluída ===================== -->
+    <section id="screen-clear" class="overlay clear-screen" aria-hidden="true">
+      <div class="panel clear-panel">
+        <div class="crash-code ok">DADOS ENTREGUES AO CPU ✓</div>
+        <h2 id="clear-title">Zona concluída!</h2>
+        <div class="tally">
+          <div><small>RAM entregue</small><b id="clear-ram">0</b></div>
+          <div><small>Tempo</small><b id="clear-time">0:00</b></div>
+          <div><small>Chips apanhados</small><b id="clear-chips">0/0</b></div>
+          <div><small>Módulos DDR5</small><b id="clear-modules">0/0</b></div>
+        </div>
+        <div class="over-score"><span id="clear-score">0</span><small>pontos totais</small></div>
+        <div class="panel-actions">
+          <button id="btn-next" class="btn primary">▶ Zona seguinte</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Fim do jogo ===================== -->
+    <section id="screen-over" class="overlay over-screen" aria-hidden="true">
+      <div class="panel over-panel">
+        <div class="crash-code">STOP 0x0000RAM · KERNEL PANIC</div>
+        <h2>O sistema bloqueou!</h2>
+        <div class="record" id="over-record">🏆 Novo recorde!</div>
+        <div class="over-score"><span id="over-score">0</span><small>pontos</small></div>
+        <div class="stats">
+          <div><small>Recorde</small><b id="over-best">0</b></div>
+          <div><small>Zona alcançada</small><b id="over-level">1</b></div>
+          <div><small>RAM apanhada</small><b id="over-chips">0</b></div>
+          <div><small>Inimigos</small><b id="over-kills">0</b></div>
+          <div><small>Fugas eliminadas</small><b id="over-leaks">0</b></div>
+        </div>
+        <p class="tip"><b>Dica:</b> levar pelo menos 1 GB de RAM protege-te de um golpe. Usa o salto duplo para sair dos buracos e grava o progresso nos SSD.</p>
+        <div class="panel-actions">
+          <button id="btn-retry" class="btn primary">↻ Tentar outra vez (R)</button>
+          <button id="btn-over-menu" class="btn ghost">Menu principal</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Vitória ===================== -->
+    <section id="screen-win" class="overlay win-screen" aria-hidden="true">
+      <div class="panel win-panel">
+        <div class="crash-code ok">SISTEMA OTIMIZADO · 0 ERROS</div>
+        <h2>Todos os dados chegaram ao CPU!</h2>
+        <div class="win-dedication">
+          <div class="ded-kicker"><span></span>Obrigado, professora<span></span></div>
+          <p class="win-quote">“Helena Nogueira a melhor professora do mundo uma mulher extraodinaria e hermosa”</p>
+          <p class="win-thanks">Este jogo é para si. Obrigado por tudo o que nos ensinou! ♥</p>
+        </div>
+        <div class="record" id="win-record">🏆 Novo recorde!</div>
+        <div class="over-score"><span id="win-score">0</span><small>pontos</small></div>
+        <div class="stats">
+          <div><small>RAM apanhada</small><b id="win-chips">0</b></div>
+          <div><small>Inimigos</small><b id="win-kills">0</b></div>
+          <div><small>Chefes vencidos</small><b id="win-bosses">0</b></div>
+          <div><small>Módulos DDR5</small><b id="win-modules">0</b></div>
+          <div><small>Vidas perdidas</small><b id="win-deaths">0</b></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btn-win-again" class="btn primary">↻ Jogar outra vez</button>
+          <button id="btn-win-menu" class="btn ghost">Menu principal</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Ordem de carregamento: dados → sistemas → lógica → vista → interface → entrada → arranque -->
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

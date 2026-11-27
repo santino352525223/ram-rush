@@ -1,0 +1,11 @@
+{
+  "name": "ram-rush-cache-and-bus",
+  "version": "2.0.0",
+  "description": "Jogo de plataformas educativo sobre a memória RAM (pt-PT).",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
