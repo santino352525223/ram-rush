@@ -53,8 +53,12 @@
   // Chefes (um por arena). hp = pontos de integridade.
   RR.BOSSES = {
     leak:   { name: 'REI DAS FUGAS', subtitle: 'Uma fuga de memória gigante que nunca liberta nada!', hp: 70, w: 150, h: 110 },
-    hive:   { name: 'COLMEIA DE MALWARE', subtitle: 'Infeta a cache e lança drones sem parar!', hp: 85, w: 190, h: 120 },
-    module: { name: 'MÓDULO CORROMPIDO', subtitle: 'Bits trocados por todo o lado! Corrige-os com pacotes ECC', hp: 110, w: 230, h: 96 },
+    worm:   { name: 'VERME DO BUFFER OVERFLOW', subtitle: 'Escreve para lá dos limites da memória! Só a cabeça é vulnerável', hp: 80, w: 70, h: 60 },
+    hive:   { name: 'COLMEIA DE MALWARE', subtitle: 'Infeta a cache e lança drones sem parar!', hp: 90, w: 190, h: 120 },
+    golem:  { name: 'GOLEM DA FRAGMENTAÇÃO', subtitle: 'Feito de blocos de memória espalhados. Acerta no núcleo!', hp: 100, w: 140, h: 150 },
+    ghost:  { name: 'FANTASMA DO PAGE FAULT', subtitle: 'Desaparece e volta onde menos esperas. Só sofre dano quando está visível', hp: 90, w: 120, h: 120 },
+    dragon: { name: 'DRAGÃO DO OVERCLOCK', subtitle: 'Frequência no máximo, temperatura no máximo! Cuidado com o fogo', hp: 110, w: 200, h: 100 },
+    module: { name: 'MÓDULO CORROMPIDO', subtitle: 'O chefe final! Bits trocados por todo o lado: corrige-os com pacotes ECC', hp: 130, w: 230, h: 96 },
   };
 
   /* Legenda dos troços:
@@ -64,6 +68,8 @@
      B  bug                     L  fuga de memória             F  drone de malware
      T  torre de malware        K  bug blindado                Z  chefe final
      C  ponto de gravação SSD   G  CPU (meta)                  P  início
+     R  bomba de refresh        _  gelo (escorrega)            %  líquido perigoso (ácido/lava)
+     +  plataforma que se desfaz (fragmentação)
      Os troços alinham-se em baixo; a largura é dada pela última linha. */
   function R(w, ...specs) {
     const a = new Array(w).fill('.');
@@ -284,13 +290,113 @@
     ],
   };
 
+  // ---- Troços com os novos perigos (ácido/lava, gelo, plataformas que se desfazem).
+  Object.assign(RR.CHUNKS, {
+    acidpool: [
+      R(36, ...every(8, 12, 1, 'o'), ...every(22, 26, 1, 'o')),
+      R(36, [8, 12, '='], [22, 26, '=']),
+      R(36),
+      R(36, [2, 'L'], [17, 'B'], [32, 'T']),
+      R(36, [0, 35, '#'], [6, 13, '%'], [20, 27, '%']),
+      G(36),
+    ],
+    sewerpipe: [
+      R(40, [2, 37, '#']),
+      R(40, [2, 37, '#']),
+      R(40, [12, 'F'], [28, 'F']),
+      R(40),
+      R(40, ...every(5, 35, 2, 'o')),
+      R(40, [7, 'L'], [19, 'K'], [33, 'L']),
+      R(40, [0, 39, '#'], [10, 12, '%'], [24, 26, '%']),
+      G(40),
+    ],
+    crumble: [
+      R(38, ...every(4, 7, 1, 'o'), ...every(12, 15, 1, 'o'), ...every(20, 23, 1, 'o'), ...every(28, 31, 1, 'o')),
+      R(38, [4, 7, '+'], [12, 15, '+'], [20, 23, '+'], [28, 31, '+']),
+      R(38),
+      R(38, [17, 'F']),
+      R(38),
+      G(38, [3, 34]), G(38, [3, 34]),
+    ],
+    fragstairs: [
+      R(34, ...every(17, 20, 1, 'o')),
+      R(34, [17, 20, '+']),
+      R(34, [12, 'o'], [24, 'o']),
+      R(34, [11, 14, '+'], [23, 26, '+']),
+      R(34, [6, 'o'], [30, 'o']),
+      R(34, [5, 8, '+'], [29, 31, '+']),
+      R(34, [10, 24, '^'], [3, 'K']),
+      G(34), G(34),
+    ],
+    icerun: [
+      R(44, ...every(6, 36, 2, 'o')),
+      R(44),
+      R(44, [14, 'B'], [30, 'K'], [38, 40, '^']),
+      R(44, [0, 3, '#'], [4, 40, '_'], [41, 43, '#']),
+      G(44),
+    ],
+    iceplat: [
+      R(40, ...every(11, 14, 1, 'o')),
+      R(40, [10, 15, '_']),
+      R(40, ...every(4, 7, 1, 'o'), ...every(19, 22, 1, 'o'), ...every(29, 32, 1, 'o')),
+      R(40, [3, 8, '_'], [18, 23, '_'], [28, 33, '_']),
+      R(40, [24, 'F']),
+      R(40, [12, 14, '_']),
+      R(40),
+      G(40, [9, 35]), G(40, [9, 35]),
+    ],
+    graveyard: [
+      R(36, [9, 'F'], [25, 'F']),
+      R(36),
+      R(36, ...every(3, 33, 3, 'o')),
+      R(36, [6, 6, '#'], [18, 19, '#'], [30, 30, '#']),
+      R(36, [6, 6, '#'], [12, 12, '#'], [18, 19, '#'], [24, 24, '#'], [30, 30, '#'], [9, 'L'], [15, 'B'], [27, 'K']),
+      G(36), G(36),
+    ],
+    darkhall: [
+      R(40, ...every(13, 17, 2, 'o'), ...every(25, 29, 2, 'o')),
+      R(40, [12, 18, '='], [24, 30, '=']),
+      R(40, [6, 'F'], [21, 'F'], [35, 'F']),
+      R(40),
+      R(40, ...every(3, 9, 2, 'o'), [20, 'T'], ...every(32, 37, 2, 'o')),
+      R(40, [0, 39, '#'], [12, 18, '^'], [24, 30, '^']),
+      G(40),
+    ],
+    lavapit: [
+      R(40, ...every(17, 21, 1, 'o')),
+      R(40, [16, 22, '=']),
+      R(40),
+      R(40, ...every(7, 11, 1, 'o'), ...every(27, 31, 1, 'o')),
+      R(40, [7, 11, '='], [27, 31, '=']),
+      R(40, [19, 'F']),
+      R(40, [2, 'T'], [37, 'T']),
+      R(40, [0, 39, '#'], [5, 16, '%'], [22, 34, '%']),
+      G(40),
+    ],
+    firestairs: [
+      R(36, ...every(15, 21, 2, 'o'), [18, 'T']),
+      R(36, [14, 22, '#']),
+      R(36, [14, 22, '#'], [11, 'o'], [25, 'o']),
+      R(36, [10, 26, '#']),
+      R(36, [10, 26, '#'], [7, 'K'], [29, 'K']),
+      R(36, [6, 30, '#']),
+      R(36, [6, 30, '#']),
+      R(36, [0, 35, '#'], [2, 4, '%'], [32, 34, '%']),
+      G(36),
+    ],
+  });
+
   RR.THEMES = {
     board:  { ground: '#0f3a2b', deep: '#0a251c', edge: '#39d98a', glow: '#7dffb5', sky: ['#03110c', '#08281d'], far: 'rgba(57,217,138,' },
     bus:    { ground: '#0f2747', deep: '#0a1a31', edge: '#4cc9ff', glow: '#a9e8ff', sky: ['#040a1a', '#0b1f42'], far: 'rgba(76,201,255,' },
     disk:   { ground: '#3a2511', deep: '#26170a', edge: '#ff9f43', glow: '#ffd29a', sky: ['#120a04', '#2c1808'], far: 'rgba(255,159,67,' },
+    sewer:  { ground: '#1b2a12', deep: '#10190a', edge: '#9dff3a', glow: '#d4ffa8', sky: ['#050a03', '#14260a'], far: 'rgba(157,255,58,', liquid: ['#8dff3a', '#2f7a0c'], liquidName: 'ÁCIDO' },
     cache:  { ground: '#2c1244', deep: '#1c0b2d', edge: '#ff4fd8', glow: '#ffb8f1', sky: ['#0b0318', '#240a3a'], far: 'rgba(255,79,216,' },
-    kernel: { ground: '#33101a', deep: '#1f0910', edge: '#ff4d6d', glow: '#ffb3c1', sky: ['#0d0306', '#2c0812'], far: 'rgba(255,77,109,' },
-    oc:     { ground: '#16303a', deep: '#0c1d24', edge: '#9ef6ff', glow: '#e4fdff', sky: ['#020c12', '#0a2a36'], far: 'rgba(158,246,255,' },
+    frag:   { ground: '#2c2736', deep: '#1b1822', edge: '#c9a8ff', glow: '#e8dcff', sky: ['#08060d', '#1d1630'], far: 'rgba(201,168,255,' },
+    ghost:  { ground: '#141a26', deep: '#0b0f17', edge: '#7fffe1', glow: '#c8fff3', sky: ['#020407', '#0b1420'], far: 'rgba(127,255,225,', dark: true, liquid: ['#7fffe1', '#1d6b5e'] },
+    fire:   { ground: '#3a120a', deep: '#220905', edge: '#ff7a1a', glow: '#ffd08a', sky: ['#140402', '#3a0e04'], far: 'rgba(255,122,26,', liquid: ['#ffb02e', '#c21d05'], liquidName: 'LAVA' },
+    ice:    { ground: '#16303a', deep: '#0c1d24', edge: '#9ef6ff', glow: '#e4fdff', sky: ['#020c12', '#0a2a36'], far: 'rgba(158,246,255,', liquid: ['#bff6ff', '#2a7fa0'] },
+    kernel: { ground: '#33101a', deep: '#1f0910', edge: '#ff4d6d', glow: '#ffb3c1', sky: ['#0d0306', '#2c0812'], far: 'rgba(255,77,109,', liquid: ['#ff4d6d', '#5a0612'] },
   };
 
   /* extra: inimigos adicionais distribuídos automaticamente (a cada ~N colunas). */
@@ -317,23 +423,52 @@
       fact: 'Quando a RAM enche, o sistema usa o disco como memória de emergência (ficheiro de paginação/swap). Funciona… mas muito mais devagar.',
     },
     {
-      name: 'Núcleo da Cache', theme: 'cache', par: 230, speedMul: 1.25, boss: 'hive',
-      extra: { every: 8, pool: ['bug', 'spiky', 'drone', 'drone', 'turret', 'leak'] },
+      name: 'Esgotos do Buffer', theme: 'sewer', par: 200, speedMul: 1.15, boss: 'worm',
+      extra: { every: 10, pool: ['leak', 'bug', 'spiky', 'turret', 'drone'] },
+      chunks: ['start', 'flat', 'acidpool', 'sewerpipe', 'gap', 'leakden', 'checkpoint', 'acidpool', 'platforms', 'sewerpipe',
+        'turrets', 'checkpoint', 'acidpool', 'droneswarm', 'leakfield', 'checkpoint', 'arena'],
+      fact: 'Buffer overflow: um programa escreve mais dados do que cabem num espaço de memória e estraga o que está ao lado. Cuidado com o ácido!',
+    },
+    {
+      name: 'Núcleo da Cache', theme: 'cache', par: 230, speedMul: 1.2, boss: 'hive',
+      extra: { every: 9, pool: ['bug', 'spiky', 'drone', 'drone', 'turret', 'leak'] },
       chunks: ['start', 'rush', 'spikes', 'platforms', 'leakden', 'checkpoint', 'spring', 'tower', 'droneswarm', 'cave',
-        'pillars', 'checkpoint', 'turrets', 'booster', 'bigjump', 'spikes', 'mudhop', 'leakden', 'hills', 'checkpoint', 'arena'],
+        'pillars', 'checkpoint', 'turrets', 'booster', 'bigjump', 'spikes', 'leakden', 'checkpoint', 'arena'],
       fact: 'As caches L1, L2 e L3 ficam dentro do CPU e são ainda mais rápidas do que a RAM. Uma colmeia de malware infetou-as!',
     },
     {
-      name: 'Zona do Overclock', theme: 'oc', par: 180, speedMul: 1.35,
-      extra: { every: 7, pool: ['spiky', 'turret', 'drone', 'bug', 'leak', 'drone'] },
-      chunks: ['start', 'rush', 'turrets', 'pillars', 'gap', 'droneswarm', 'checkpoint', 'spikes', 'tower', 'leakden', 'booster',
-        'cave', 'checkpoint', 'platforms', 'turrets', 'hills', 'bigjump', 'spikes', 'rush', 'goal'],
-      fact: 'Overclock: aumentar a frequência da RAM dá mais velocidade, mas também mais calor e mais erros. Tudo aqui é mais rápido!',
+      name: 'Pedreira da Fragmentação', theme: 'frag', par: 220, speedMul: 1.25, boss: 'golem',
+      extra: { every: 9, pool: ['spiky', 'bug', 'turret', 'drone', 'leak'] },
+      chunks: ['start', 'flat', 'crumble', 'fragstairs', 'pillars', 'checkpoint', 'crumble', 'turrets', 'spikes', 'fragstairs',
+        'checkpoint', 'tower', 'crumble', 'leakfield', 'checkpoint', 'arena'],
+      fact: 'Fragmentação: a memória livre fica partida em pedaços pequenos espalhados. Aqui as plataformas também se desfazem!',
     },
     {
-      name: 'Câmara do Kernel', theme: 'kernel', par: 240, speedMul: 1.4, boss: 'module',
-      extra: { every: 7, pool: ['spiky', 'turret', 'drone', 'bug'] },
-      chunks: ['start', 'flat', 'turrets', 'gap', 'leakfield', 'checkpoint', 'pillars', 'droneswarm', 'spikes', 'checkpoint', 'arena'],
+      name: 'Cemitério da Memória Virtual', theme: 'ghost', par: 230, speedMul: 1.25, boss: 'ghost',
+      extra: { every: 8, pool: ['drone', 'drone', 'leak', 'spiky', 'turret'] },
+      chunks: ['start', 'graveyard', 'darkhall', 'gap', 'checkpoint', 'graveyard', 'platforms', 'darkhall', 'turrets',
+        'checkpoint', 'graveyard', 'crumble', 'droneswarm', 'checkpoint', 'arena'],
+      fact: 'Memória virtual: as páginas que não cabem na RAM vão para o disco. Um page fault traz-las de volta… às escuras!',
+    },
+    {
+      name: 'Fornalha do Overclock', theme: 'fire', par: 230, speedMul: 1.35, boss: 'dragon',
+      extra: { every: 8, pool: ['spiky', 'turret', 'drone', 'bug', 'turret'] },
+      chunks: ['start', 'rush', 'lavapit', 'firestairs', 'turrets', 'checkpoint', 'lavapit', 'pillars', 'spikes', 'firestairs',
+        'checkpoint', 'droneswarm', 'lavapit', 'rush', 'checkpoint', 'arena'],
+      fact: 'Overclock: aumentar a frequência da RAM dá mais velocidade, mas também mais calor e mais erros. Não caias na lava!',
+    },
+    {
+      name: 'Refrigeração Líquida', theme: 'ice', par: 200, speedMul: 1.35,
+      extra: { every: 7, pool: ['spiky', 'turret', 'drone', 'bug', 'drone'] },
+      chunks: ['start', 'icerun', 'iceplat', 'gap', 'checkpoint', 'icerun', 'turrets', 'iceplat', 'spikes', 'checkpoint',
+        'icerun', 'pillars', 'crumble', 'bigjump', 'icerun', 'goal'],
+      fact: 'Para aguentar o overclock é preciso arrefecer: módulos de RAM rápidos têm dissipadores de calor. Atenção: o gelo escorrega!',
+    },
+    {
+      name: 'Câmara do Kernel', theme: 'kernel', par: 260, speedMul: 1.45, boss: 'module',
+      extra: { every: 6, pool: ['spiky', 'turret', 'drone', 'bug', 'leak'] },
+      chunks: ['start', 'flat', 'turrets', 'acidpool', 'leakfield', 'checkpoint', 'crumble', 'pillars', 'lavapit', 'checkpoint',
+        'droneswarm', 'iceplat', 'spikes', 'checkpoint', 'arena'],
       fact: 'Último desafio: um módulo de RAM corrompido bloqueia o CPU. Repara-o com o canhão ECC (código de correção de erros)!',
     },
   ];
@@ -385,6 +520,13 @@
     'Memória virtual: cada programa vê endereços ordenados, mesmo que os dados estejam espalhados pela RAM física.',
     'ECC (Error-Correcting Code): memória que deteta e corrige automaticamente bits trocados por erros.',
     'Um "bit flip" é quando um 0 passa a 1 (ou ao contrário) por interferência. A memória ECC corrige-o.',
+    'Buffer overflow: escrever para lá do fim de um espaço de memória pode estragar outros dados (e abrir falhas de segurança).',
+    'Fragmentação: quando a memória livre fica espalhada em pedaços pequenos, pode não haver um bloco grande seguido disponível.',
+    'Thrashing: quando há tão pouca RAM que o sistema passa mais tempo a trocar páginas com o disco do que a trabalhar.',
+    'A SRAM (usada na cache) é mais rápida e mais cara do que a DRAM (usada nos módulos de RAM).',
+    'Os módulos de RAM para portáteis chamam-se SO-DIMM: são mais pequenos do que os DIMM dos computadores de secretária.',
+    'XMP/EXPO são perfis que permitem à RAM funcionar a frequências mais altas do que o padrão (overclock).',
+    'A largura de banda da RAM mede-se em GB/s: frequência × largura do barramento × número de canais.',
   ];
 
   RR.HINTS = {
@@ -405,6 +547,12 @@
     turret: 'Torre de malware: dispara bits corrompidos. Salta-lhe para cima!',
     locked: 'O CPU está bloqueado: derrota primeiro o módulo corrompido!',
     shield: 'Escudo de paridade! Os disparos ricocheteiam: espera que caia',
+    liquid: 'Cuidado: o líquido queima! Salta por cima ou usa as plataformas',
+    ice: 'Gelo! Escorregas muito: trava com antecedência',
+    crumble: 'Estas plataformas fragmentadas desfazem-se: não pares em cima delas!',
+    dark: 'Está escuro… só vês o que está perto de ti',
+    vanish: 'O fantasma desapareceu (page fault)! Só lhe podes acertar quando estiver visível',
+    worm: 'Só a cabeça do verme sofre dano: o corpo bloqueia os disparos',
   };
 
   RR.TEXT = {

@@ -70,17 +70,20 @@
       const g = this.game, ui = this.ui;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       this.audio.unlock();
+      // A escrever o nome: as teclas pertencem ao campo de texto (o Enter submete o formulário).
+      if (e.target && e.target.tagName === 'INPUT') return;
       if (code in MAP || code === 'Tab') e.preventDefault();
 
       if (ui.helpOpen) {
         if (!e.repeat && ['Escape', 'KeyH', 'Enter', 'Space'].includes(code)) ui.closeHelp();
         return;
       }
+      if (!e.repeat && ui.menuKey(code)) { e.preventDefault(); return; }
       if (code === 'KeyM' && !e.repeat) { ui.toggleMute(); return; }
 
       switch (g.state) {
         case 'title':
-          if (!e.repeat && (code === 'Enter' || code === 'Space')) ui.startGame();
+          if (!e.repeat && (code === 'Enter' || code === 'Space')) ui.openChars();
           else if (code === 'KeyH') ui.openHelp();
           return;
         case 'cleared':

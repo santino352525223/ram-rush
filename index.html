@@ -123,12 +123,67 @@
 
         <div class="title-actions">
           <button id="btn-play" class="btn primary">▶ Jogar / Iniciar Jogo</button>
+          <button id="btn-title-rank" class="btn">🏆 Ranking TOP 10</button>
           <button id="btn-title-help" class="btn ghost">Controlos e como jogar</button>
+        </div>
+        <div class="player-bar">
+          <span class="player-avatar" aria-hidden="true">👤</span>
+          <span>A jogar como <b id="title-player">—</b></span>
+          <span class="pb">Recorde pessoal: <b id="title-pbest">0</b></span>
+          <button id="btn-switch" class="btn small-btn">⇄ Mudar de jogador</button>
         </div>
         <div class="title-foot">
           <span>Prime <kbd>Enter</kbd> para jogar</span>
-          <span>6 zonas · 3 chefes</span>
+          <span>10 zonas · 7 chefes · 6 personagens</span>
           <span>Recorde: <b id="title-best">0</b></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Conta de jogador ===================== -->
+    <section id="screen-login" class="overlay login-screen" aria-hidden="true">
+      <div class="panel login-panel">
+        <div class="ram-stick small" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <h2>Quem está a jogar?</h2>
+        <p class="muted">Escreve o teu nome. Cada nome é uma conta diferente, com o seu recorde e as suas zonas desbloqueadas.
+          As melhores pontuações entram sozinhas no <b>TOP 10</b>.</p>
+        <form id="login-form" class="login-row" autocomplete="off">
+          <input id="login-name" maxlength="14" placeholder="O teu nome" autocomplete="off" spellcheck="false">
+          <button type="submit" class="btn primary">Entrar ▶</button>
+        </form>
+        <div id="login-error" class="login-error"></div>
+        <h3 id="profiles-title">Ou escolhe uma conta já criada</h3>
+        <div id="profile-list" class="profile-list"></div>
+      </div>
+    </section>
+
+    <!-- ===================== Escolha de personagem e zona ===================== -->
+    <section id="screen-chars" class="overlay chars-screen" aria-hidden="true">
+      <div class="panel chars-panel">
+        <h2>Escolhe a tua personagem</h2>
+        <p class="muted">Usa <kbd>←</kbd> <kbd>→</kbd> para escolher, <kbd>↑</kbd> <kbd>↓</kbd> para mudar de zona e <kbd>Enter</kbd> para começar.</p>
+        <div class="char-grid" id="char-grid"></div>
+        <h3>Zona inicial <small class="muted" id="zone-unlocked"></small></h3>
+        <div class="zone-grid" id="zone-grid"></div>
+        <div class="panel-actions">
+          <button id="btn-chars-back" class="btn ghost">◀ Voltar</button>
+          <button id="btn-chars-go" class="btn primary">▶ Começar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Ranking TOP 10 ===================== -->
+    <section id="screen-rank" class="overlay rank-screen" aria-hidden="true">
+      <div class="panel rank-panel">
+        <div class="crash-code ok">MEMÓRIA PERMANENTE · TOP 10</div>
+        <h2>🏆 Ranking dos melhores</h2>
+        <table class="rank-table">
+          <thead><tr><th>#</th><th>Jogador</th><th>Pontos</th><th>Zona</th><th>Personagem</th><th>Data</th></tr></thead>
+          <tbody id="rank-body"></tbody>
+        </table>
+        <p class="muted small-note">Cada jogador aparece uma vez, com a sua melhor pontuação. O ranking fica guardado neste navegador, neste computador.</p>
+        <div class="panel-actions">
+          <button id="btn-rank-back" class="btn primary">◀ Voltar</button>
         </div>
       </div>
     </section>
@@ -137,7 +192,7 @@
     <section id="screen-help" class="overlay help-screen" aria-hidden="true">
       <div class="panel help-panel">
         <h2>Como jogar</h2>
-        <p class="lead">És o <b>BIT</b>, um robô mensageiro de dados. Corre pela placa-mãe, <b>apanha os chips de RAM</b> espalhados pelo caminho e leva-os até ao <b>CPU</b> no fim de cada zona. São <b>6 zonas</b> e <b>3 chefes</b>: o Rei das Fugas, a Colmeia de Malware e o Módulo Corrompido.</p>
+        <p class="lead">És o <b>BIT</b>, um robô mensageiro de dados. Corre pela placa-mãe, <b>apanha os chips de RAM</b> espalhados pelo caminho e leva-os até ao <b>CPU</b> no fim de cada zona. São <b>10 zonas</b> e <b>7 chefes</b> (Rei das Fugas, Verme do Buffer Overflow, Colmeia de Malware, Golem da Fragmentação, Fantasma do Page Fault, Dragão do Overclock e o Módulo Corrompido). Escolhe entre <b>6 personagens</b>, cada uma com habilidades próprias, e tenta entrar no <b>TOP 10</b>!</p>
 
         <div class="help-grid">
           <div class="help-col">
@@ -189,6 +244,10 @@
           <div><i class="sw bomb"></i><b>Bomba de Refresh</b> Tal como o refresh da DRAM, reescreve tudo à tua volta.</div>
           <div><i class="sw ddr"></i><b>Módulo DDR5</b> Colecionável escondido: +5 GB e 1000 pontos.</div>
           <div><i class="sw spring"></i><b>Condensador</b> Mola que te atira para cima. A DRAM guarda cada bit num condensador.</div>
+          <div><i class="sw acid"></i><b>Ácido e lava</b> Queimam e fazem-te perder a RAM. Salta por cima!</div>
+          <div><i class="sw ice"></i><b>Gelo</b> Refrigeração líquida: escorregas e travas muito mal.</div>
+          <div><i class="sw crumble"></i><b>Plataformas fragmentadas</b> Como a memória fragmentada: desfazem-se debaixo dos pés.</div>
+          <div><i class="sw dark"></i><b>Escuridão</b> No cemitério da memória virtual só vês à tua volta.</div>
         </div>
         <div class="panel-actions">
           <button id="btn-help-close" class="btn primary">Percebido!</button>
@@ -242,6 +301,10 @@
           <div><small>Inimigos</small><b id="over-kills">0</b></div>
           <div><small>Fugas eliminadas</small><b id="over-leaks">0</b></div>
         </div>
+        <div class="rank-entry" id="over-entry">
+          <div class="rank-entry-title" id="over-rankmsg"></div>
+          <button id="btn-over-rank" class="btn">🏆 Ver ranking</button>
+        </div>
         <p class="tip"><b>Dica:</b> levar pelo menos 1 GB de RAM protege-te de um golpe. Usa o salto duplo para sair dos buracos e grava o progresso nos SSD.</p>
         <div class="panel-actions">
           <button id="btn-retry" class="btn primary">↻ Tentar outra vez (R)</button>
@@ -269,6 +332,10 @@
           <div><small>Módulos DDR5</small><b id="win-modules">0</b></div>
           <div><small>Vidas perdidas</small><b id="win-deaths">0</b></div>
         </div>
+        <div class="rank-entry" id="win-entry">
+          <div class="rank-entry-title" id="win-rankmsg"></div>
+          <button id="btn-win-rank" class="btn">🏆 Ver ranking</button>
+        </div>
         <div class="panel-actions">
           <button id="btn-win-again" class="btn primary">↻ Jogar outra vez</button>
           <button id="btn-win-menu" class="btn ghost">Menu principal</button>
@@ -279,8 +346,11 @@
 
   <!-- Ordem de carregamento: dados → sistemas → lógica → vista → interface → entrada → arranque -->
   <script src="js/data.js"></script>
+  <script src="js/characters.js"></script>
+  <script src="js/ranking.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/particles.js"></script>
+  <script src="js/bosses.js"></script>
   <script src="js/game.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/ui.js"></script>

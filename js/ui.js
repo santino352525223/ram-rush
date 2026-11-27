@@ -20,6 +20,7 @@
       this.lastRam = 0;
 
       const ids = ['hud', 'touch', 'screen-title', 'screen-help', 'screen-pause', 'screen-over', 'screen-clear', 'screen-win',
+        'screen-chars', 'screen-rank', 'screen-login', 'char-grid', 'zone-grid', 'zone-unlocked', 'rank-body',
         'banner', 'toasts', 'hud-ram', 'hud-ram-box', 'hud-lives', 'hud-score', 'hud-time', 'hud-level', 'hud-zone',
         'energy-fill', 'energy-box', 'btn-dash', 'btn-gc', 'gc-sub', 'dash-sub', 'btn-mute', 'title-best',
         'boss-bar', 'boss-name', 'boss-phase', 'boss-fill', 'hud-weapon', 'hud-bombs', 'heat-fill', 'weapon-box'];
@@ -32,7 +33,21 @@
         this.audio.play('ui');
         fn();
       });
-      click('btn-play', () => this.startGame());
+      click('btn-play', () => this.openChars());
+      click('btn-chars-go', () => this.startGame());
+      click('btn-chars-back', () => this.closeChars());
+      click('btn-title-rank', () => this.openRanking());
+      click('btn-rank-back', () => this.closeRanking());
+      click('btn-over-rank', () => this.openRanking(this.playerName()));
+      click('btn-win-rank', () => this.openRanking(this.playerName()));
+      click('btn-switch', () => this.openLogin());
+      $('login-form').addEventListener('submit', (e) => { e.preventDefault(); this.doLogin($('login-name').value); });
+      this.zoneSel = 0;
+      this.loadProfileSelection();
+      this.buildChars();
+      // Ao entrar no jogo pede-se logo o nome (se ainda não houver conta ativa).
+      if (!RR.Profiles.current()) setTimeout(() => this.openLogin(), 0);
+      else this.renderPlayerBar();
       click('btn-title-help', () => this.openHelp());
       click('btn-help-close', () => this.closeHelp());
       click('btn-help', () => this.openHelp());
@@ -52,7 +67,7 @@
       $('weapon-box').addEventListener('click', () => this.game.switchWeapon());
 
       this.renderMute();
-      this.el['title-best'].textContent = this.fmt(game.best);
+      this.el['title-best'].textContent = this.fmt(this.bestScore());
       if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch-device');
       window.addEventListener('pointerdown', (e) => {
         if (e.pointerType === 'touch') document.body.classList.add('touch-device');
@@ -60,6 +75,229 @@
     }
 
     fmt(n) { return Math.round(n).toLocaleString('pt-PT'); }
+    bestScore() { return RR.Ranking.best(); }
+
+    // ---------------------------------------------------- contas de jogador
+    playerName() { const p = RR.Profiles.current(); return p ? p.name : 'Anónimo'; }
+
+    loadProfileSelection() {
+      const save = RR.Save.get();
+      this.sel = Math.max(0, RR.CHARACTERS.findIndex((c) => c.id === save.char));
+      this.zoneSel = 0;
+    }
+
+    renderPlayerBar() {
+      const p = RR.Profiles.current();
+      $('title-player').textContent = p ? p.name : '—';
+      $('title-pbest').textContent = this.fmt(p ? p.best || 0 : 0);
+      this.el['title-best'].textContent = this.fmt(this.bestScore());
+    }
+
+    openLogin() {
+      this.loginOpen = true;
+      this.show('screen-title', false);
+      const list = $('profile-list');
+      list.innerHTML = '';
+      const profiles = RR.Profiles.list();
+      $('profiles-title').style.display = profiles.length ? '' : 'none';
+      profiles.forEach((p) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'profile-btn';
+        const ch = RR.getCharacter(p.char);
+        b.style.setProperty('--c', ch.colors.main);
+        b.innerHTML = `<b></b><small>Recorde: ${this.fmt(p.best || 0)} · Zona ${p.unlocked || 1} · ${p.games || 0} jogos</small>`;
+        b.querySelector('b').textContent = p.name;
+        b.addEventListener('click', () => this.doLogin(p.name));
+        list.appendChild(b);
+      });
+      $('login-error').textContent = '';
+      const cur = RR.Profiles.current();
+      $('login-name').value = '';
+      this.show('screen-login', true);
+      setTimeout(() => $('login-name').focus({ preventScroll: true }), 80);
+      this.loginCanCancel = !!cur;
+    }
+
+    doLogin(name) {
+      const n = String(name || '').trim();
+      if (n.length < 2) { $('login-error').textContent = 'O nome tem de ter pelo menos 2 letras.'; this.audio.play('error'); return; }
+      this.audio.unlock();
+      const isNew = !RR.Profiles.get(n);
+      const p = RR.Profiles.login(n);
+      this.audio.play('checkpoint');
+      this.loginOpen = false;
+      this.show('screen-login', false);
+      this.loadProfileSelection();
+      this.renderPlayerBar();
+      this.show('screen-title', true);
+      this.toast(isNew ? `👋 Bem-vindo(a), ${p.name}! Conta criada.` : `👋 Olá outra vez, ${p.name}!`, 'save', 2600);
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    }
+
+    // Regista a pontuação da partida na conta e no TOP 10 (automático).
+    submitRun(won) {
+      const g = this.game;
+      const p = RR.Profiles.current();
+      if (!p || g.score <= 0) return { rank: p ? RR.Ranking.positionOf(p.name) : -1, improved: false, personal: false };
+      const personal = g.score > (p.best || 0);
+      RR.Profiles.update({
+        best: Math.max(p.best || 0, g.score),
+        games: (p.games || 0) + 1,
+        wins: (p.wins || 0) + (won ? 1 : 0),
+        chips: (p.chips || 0) + (g.totals.chips || 0),
+        bosses: Math.max(p.bosses || 0, g.totals.bosses || 0),
+      });
+      const res = RR.Ranking.submit(p.name, g.score, { zone: g.levelIndex + 1, char: g.charId, won });
+      res.personal = personal;
+      return res;
+    }
+
+    showRankResult(prefix, res) {
+      const msg = $(prefix + '-rankmsg');
+      if (res.rank >= 0 && res.improved) msg.innerHTML = `🏆 <b></b> entrou no TOP 10 em <b>#${res.rank + 1}</b>!`;
+      else if (res.personal) msg.innerHTML = '⭐ Novo recorde pessoal de <b></b>!';
+      else if (res.rank >= 0) msg.innerHTML = `<b></b> continua no TOP 10 em <b>#${res.rank + 1}</b>.`;
+      else msg.innerHTML = '<b></b>: ainda não chegou ao TOP 10. Tenta outra vez!';
+      msg.querySelector('b').textContent = this.playerName();
+    }
+
+    // ------------------------------------------------- escolha de personagem
+    buildChars() {
+      const grid = this.el['char-grid'];
+      grid.innerHTML = '';
+      this.charCanvases = [];
+      RR.CHARACTERS.forEach((c, i) => {
+        const card = document.createElement('button');
+        card.className = 'char-card';
+        card.style.setProperty('--c', c.colors.main);
+        const stats = Object.entries(c.stats).map(([k, v]) =>
+          `<div class="stat"><span>${k}</span><i>${'<b></b>'.repeat(v)}${'<em></em>'.repeat(5 - v)}</i></div>`).join('');
+        card.innerHTML = `<canvas width="240" height="200" aria-hidden="true"></canvas>
+          <div class="char-name">${c.name}</div><div class="char-tag">${c.tagline}</div>
+          <div class="char-stats">${stats}</div><div class="char-desc">${c.desc}</div>`;
+        card.addEventListener('click', () => { this.sel = i; this.audio.unlock(); this.audio.play('ui'); this.renderChars(); });
+        card.addEventListener('dblclick', () => this.startGame());
+        grid.appendChild(card);
+        this.charCanvases.push(card.querySelector('canvas'));
+      });
+    }
+
+    renderChars() {
+      [...this.el['char-grid'].children].forEach((card, i) => card.classList.toggle('selected', i === this.sel));
+      const unlocked = RR.Save.get().unlocked;
+      this.zoneSel = Math.min(this.zoneSel, unlocked - 1);
+      const zg = this.el['zone-grid'];
+      zg.innerHTML = '';
+      RR.LEVELS.forEach((lv, i) => {
+        const b = document.createElement('button');
+        b.className = 'zone-btn' + (i === this.zoneSel ? ' selected' : '');
+        b.disabled = i >= unlocked;
+        b.style.setProperty('--z', RR.THEMES[lv.theme].edge);
+        b.innerHTML = `<b>${i + 1}</b><span>${i >= unlocked ? '🔒 Bloqueada' : lv.name}</span>${lv.boss ? `<small>👑 ${RR.BOSSES[lv.boss].name}</small>` : '<small>&nbsp;</small>'}`;
+        b.addEventListener('click', () => { this.zoneSel = i; this.audio.play('ui'); this.renderChars(); });
+        zg.appendChild(b);
+      });
+      this.el['zone-unlocked'].textContent = `(${unlocked}/${RR.LEVELS.length} desbloqueadas)`;
+    }
+
+    openChars() {
+      this.hideScreens();
+      this.renderChars();
+      this.show('screen-chars', true);
+      this.charsOpen = true;
+      const loop = (now) => {
+        if (!this.charsOpen) return;
+        const t = now / 1000;
+        this.charCanvases.forEach((cv, i) => {
+          const ctx = cv.getContext('2d');
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, cv.width, cv.height);
+          const sel = i === this.sel;
+          const c = RR.CHARACTERS[i];
+          const grd = ctx.createRadialGradient(120, 120, 10, 120, 120, 110);
+          grd.addColorStop(0, sel ? c.colors.main + '66' : c.colors.main + '22');
+          grd.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = grd;
+          ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(20, 168, 200, 3);
+          ctx.translate(120, 168);
+          ctx.scale(2.6, 2.6);
+          const moving = sel;
+          RR.drawCharacter(ctx, c.id, { t, run: moving ? t * 320 : 0, moving, air: false, speed: moving ? 400 : 0 });
+        });
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+
+    closeChars() {
+      this.charsOpen = false;
+      this.show('screen-chars', false);
+      this.show('screen-title', true);
+    }
+
+    moveChar(d) {
+      this.sel = (this.sel + d + RR.CHARACTERS.length) % RR.CHARACTERS.length;
+      this.audio.play('move');
+      this.renderChars();
+    }
+
+    moveZone(d) {
+      const unlocked = RR.Save.get().unlocked;
+      this.zoneSel = Math.max(0, Math.min(unlocked - 1, this.zoneSel + d));
+      this.audio.play('move');
+      this.renderChars();
+    }
+
+    // ------------------------------------------------------------- ranking
+    openRanking(highlightName) {
+      const highlightKey = highlightName ? String(highlightName).toLowerCase() : null;
+      this.rankOpen = true;
+      const body = this.el['rank-body'];
+      const list = RR.Ranking.list();
+      body.innerHTML = '';
+      if (!list.length) body.innerHTML = '<tr><td colspan="6" class="empty">Ainda não há pontuações. Sê o primeiro!</td></tr>';
+      list.forEach((e, i) => {
+        const tr = document.createElement('tr');
+        if (highlightKey && e.name.toLowerCase() === highlightKey) tr.className = 'me';
+        const medal = ['🥇', '🥈', '🥉'][i] || (i + 1);
+        const ch = RR.getCharacter(e.char);
+        const cells = [medal, e.name, this.fmt(e.score), (e.won ? '🏆 ' : '') + e.zone, ch.name, e.date];
+        cells.forEach((v) => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+        body.appendChild(tr);
+      });
+      this.show('screen-rank', true);
+    }
+
+    closeRanking() {
+      this.rankOpen = false;
+      this.show('screen-rank', false);
+      if (this.game.state === 'title') this.renderPlayerBar();
+    }
+
+    // Teclas nos menus (conta / personagens / ranking). Devolve true se tratou a tecla.
+    menuKey(code) {
+      if (this.loginOpen) {
+        if (code === 'Escape' && this.loginCanCancel) { this.loginOpen = false; this.show('screen-login', false); this.show('screen-title', true); }
+        return true;
+      }
+      if (this.rankOpen) {
+        if (code === 'Escape' || code === 'Enter' || code === 'Space') { this.closeRanking(); return true; }
+        return true;
+      }
+      if (this.charsOpen) {
+        if (code === 'ArrowLeft' || code === 'KeyA') this.moveChar(-1);
+        else if (code === 'ArrowRight' || code === 'KeyD') this.moveChar(1);
+        else if (code === 'ArrowUp' || code === 'KeyW') this.moveZone(-1);
+        else if (code === 'ArrowDown' || code === 'KeyS') this.moveZone(1);
+        else if (code === 'Enter' || code === 'Space') this.startGame();
+        else if (code === 'Escape') this.closeChars();
+        return true;
+      }
+      return false;
+    }
     fmtTime(t) {
       const m = Math.floor(t / 60), s = Math.floor(t % 60);
       return `${m}:${String(s).padStart(2, '0')}`;
@@ -80,7 +318,10 @@
     }
 
     hideScreens() {
-      ['screen-title', 'screen-pause', 'screen-over', 'screen-clear', 'screen-win', 'screen-help'].forEach((id) => this.show(id, false));
+      ['screen-title', 'screen-pause', 'screen-over', 'screen-clear', 'screen-win', 'screen-help', 'screen-chars', 'screen-rank', 'screen-login'].forEach((id) => this.show(id, false));
+      this.loginOpen = false;
+      this.charsOpen = false;
+      this.rankOpen = false;
       this.helpOpen = false;
       this.pausedByHelp = false;
       this.overlayReady = false;
@@ -96,7 +337,10 @@
       this.hideScreens();
       document.body.classList.add('in-game');
       this.cache = {};
-      this.game.startNew();
+      const ch = RR.CHARACTERS[this.sel] || RR.CHARACTERS[0];
+      this.game.setCharacter(ch.id);
+      RR.Save.set({ char: ch.id });
+      this.game.startNew(this.zoneSel || 0);
       if (this.onLayoutChange) this.onLayoutChange();
       if (document.body.classList.contains('touch-device') && window.innerHeight > window.innerWidth) {
         this.later(() => this.toast('📱 Dica: roda o telemóvel na horizontal para veres mais do nível', 'info', 3500), 4500);
@@ -123,11 +367,13 @@
     }
 
     toMenu() {
-      this.hideScreens();
       const g = this.game;
+      // Sair a meio da partida também conta para o recorde e o ranking.
+      if (g.state === 'paused' || g.state === 'playing' || g.state === 'cleared') this.submitRun(false);
+      this.hideScreens();
       g.loadLevel(0);
       g.state = 'title';
-      this.el['title-best'].textContent = this.fmt(g.best);
+      this.renderPlayerBar();
       this.show('screen-title', true);
       document.body.classList.remove('in-game');
       this.cache = {};
@@ -175,7 +421,7 @@
     // --------------------------------------------------------------- eventos
     onEvent(type, d) {
       switch (type) {
-        case 'level': this.levelBanner(d); break;
+        case 'level': RR.Save.unlock(d.index); this.levelBanner(d); break;
         case 'hint': if (d.text) this.toast(d.text, 'hint'); break;
         case 'checkpoint': this.toast('💾 ' + d.fact, 'save', 4200); break;
         case 'cleared': this.showCleared(d); break;
@@ -257,6 +503,7 @@
 
     showGameOver(d) {
       const g = this.game, t = g.totals;
+      const res = this.submitRun(false);
       $('over-score').textContent = this.fmt(g.score);
       $('over-best').textContent = this.fmt(g.best);
       $('over-record').style.display = d.isRecord && g.score > 0 ? '' : 'none';
@@ -264,8 +511,10 @@
       $('over-chips').textContent = this.fmt(t.chips) + ' GB';
       $('over-kills').textContent = t.kills;
       $('over-leaks').textContent = t.leaks;
+      $('over-best').textContent = this.fmt(this.bestScore());
       this.later(() => {
         this.show('screen-over', true);
+        this.showRankResult('over', res);
         this.later(() => { this.overlayReady = true; $('btn-retry').focus({ preventScroll: true }); }, 450);
       }, 900);
     }
@@ -281,6 +530,7 @@
       $('win-deaths').textContent = t.deaths;
       this.show('screen-clear', false);
       this.show('screen-win', true);
+      this.showRankResult('win', this.submitRun(true));
       this.later(() => { this.overlayReady = true; $('btn-win-again').focus({ preventScroll: true }); }, 600);
     }
 

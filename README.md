@@ -1,9 +1,45 @@
 # RAM RUSH: Cache & Bus
 
 Jogo de plataformas rápido e educativo sobre **o funcionamento da memória RAM**.
-Controlas o **BIT**, um robô mensageiro de dados que corre pela placa-mãe a apanhar os
-**chips de RAM** espalhados pelo caminho, enfrenta bugs, fugas de memória e malware,
-derrota **3 chefes** e entrega os dados ao **CPU** no fim de cada zona.
+Escolhe uma de **6 personagens**, corre pela placa-mãe a apanhar os **chips de RAM**
+espalhados pelo caminho, enfrenta bugs, fugas de memória e malware, atravessa **10 zonas**,
+derrota **7 chefes** e entrega os dados ao **CPU**. As melhores pontuações entram sozinhas no **TOP 10**.
+
+## Novidades da versão 3
+
+- **Contas de jogador:** ao abrir o jogo escreves o teu nome. Cada nome é uma conta com o seu recorde,
+  as suas zonas desbloqueadas e a sua personagem. Podes mudar de jogador no ecrã inicial (⇄ Mudar de jogador).
+- **Ranking TOP 10 automático:** no fim de cada partida a pontuação é registada sozinha. Cada jogador aparece
+  uma vez, com a sua melhor pontuação (fica guardado no navegador deste computador).
+- **6 personagens** inspiradas em memes da internet, cada uma com habilidades próprias.
+- **10 zonas e 7 chefes**, com novos perigos: ácido, lava, gelo, plataformas que se desfazem e escuridão.
+- **Escolha de zona:** podes começar em qualquer zona que a tua conta já tenha desbloqueado.
+
+### Personagens
+
+| Personagem | Inspiração | Habilidade |
+|---|---|---|
+| **BIT** | o robô original | Equilibrado; começa com +1 Bomba de Refresh |
+| **Shiba Turbo** | o meme do cão shiba ("muito rápido, tanta RAM, uau") | Mais rápido; a energia do Dual Channel enche 60 % mais depressa |
+| **Capivara Zen** | o meme da capivara calma com uma laranja na cabeça | Só perde metade da RAM ao ser atingida; +1 vida; mais lenta |
+| **Pato Depurador** | o *rubber duck debugging* dos programadores | Salto triplo, plana e elimina bugs só de lhes tocar |
+| **Gato do Teclado** | o meme do gato que toca teclado | Dispara 30 % mais depressa e o canhão aquece muito menos |
+| **Hamster Gerador** | a piada de que os computadores funcionam com hamsters | Gera energia sozinho; Garbage Collector recarrega mais depressa |
+
+### Zonas e chefes (v3)
+
+| Zona | Nome | Perigo / chefe |
+|---|---|---|
+| 1 | Zona da Placa-Mãe | Introdução |
+| 2 | Autoestrada do Barramento | **Rei das Fugas** |
+| 3 | Deserto da Paginação | Areia lenta (swap) |
+| 4 | Esgotos do Buffer | Ácido · **Verme do Buffer Overflow** (só a cabeça sofre dano) |
+| 5 | Núcleo da Cache | **Colmeia de Malware** |
+| 6 | Pedreira da Fragmentação | Plataformas que se desfazem · **Golem da Fragmentação** |
+| 7 | Cemitério da Memória Virtual | Escuridão · **Fantasma do Page Fault** (desaparece e teleporta-se) |
+| 8 | Fornalha do Overclock | Lava · **Dragão do Overclock** (fogo, meteoros, onda de calor) |
+| 9 | Refrigeração Líquida | Gelo escorregadio |
+| 10 | Câmara do Kernel | Tudo junto · **Módulo Corrompido** (chefe final) |
 
 > Dedicado a **Helena Nogueira**: «Helena Nogueira a melhor professora do mundo uma mulher extraodinaria e hermosa».
 > A dedicatória aparece no ecrã inicial e no ecrã final, quando ganhas o jogo.
@@ -93,6 +129,9 @@ Cada zona e cada SSD mostram uma curiosidade sobre a RAM.
 index.html          Ecrãs (dedicatória, ajuda, pausa, zona concluída, fim, vitória), HUD e controlos táteis
 css/styles.css      Estilos e animações (estética cyber-hardware)
 js/data.js          Física, troços de nível em ASCII, zonas, chefes, temas visuais e curiosidades
+js/characters.js    As 6 personagens: habilidades e desenho
+js/bosses.js        Comportamento e desenho dos chefes Verme, Golem, Fantasma e Dragão
+js/ranking.js       Contas de jogador, ranking TOP 10 e progresso guardado
 js/game.js          Lógica: física com subpassos, salto duplo, colisões, inimigos, armas, bombas e chefes
 js/renderer.js      Canvas 2D: câmara com zoom nas arenas, parallax em 3 camadas, iluminação, BIT, inimigos e chefes
 js/particles.js     Partículas, anéis, textos flutuantes, confettis, flashes e tremor do ecrã
@@ -114,7 +153,8 @@ const s = document.createElement('script'); s.src = 'tests/bot.js'; document.bod
 RRTEST.runAll()
 ```
 
-Verifica que todas as zonas podem ser concluídas, que os 3 chefes podem ser derrotados, que o personagem
+Inclui um "solucionador" que prova, troço a troço, que todas as partes dos níveis são possíveis de passar.
+Verifica que todas as zonas podem ser concluídas, que os 7 chefes podem ser derrotados, que o personagem
 nunca fica dentro de uma parede, que não surgem erros nem valores inválidos com entradas aleatórias
 (pausas, reinícios, armas, bombas) e que todos os troços de nível estão bem formados.
 

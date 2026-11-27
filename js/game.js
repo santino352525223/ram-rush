@@ -9,7 +9,8 @@
   const T = C.TILE;
   const BEST_KEY = 'ramrush.v3.best';
 
-  const SOLID = { '#': 1, '~': 1, '>': 1, '<': 1 };
+  const SOLID = { '#': 1, '~': 1, '>': 1, '<': 1, '_': 1 };
+  const ONEWAY = { '=': 1, '+': 1 };
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   function seeded(seed) {
     let s = seed % 2147483647;
@@ -32,8 +33,15 @@
       this.weapons = { spread: false };
       this.weapon = 'ecc';
       this.bombs = C.BOMBS_START;
+      this.setCharacter('bit');
+      this.startZone = 0;
       this.loadLevel(0);
       this.state = 'title';
+    }
+
+    setCharacter(id) {
+      this.char = RR.getCharacter(id);
+      this.charId = this.char.id;
     }
 
     on(fn) { this.listeners.push(fn); }
@@ -41,17 +49,20 @@
     emit(type, data) { const d = data || {}; for (const fn of this.listeners.slice()) fn(type, d); }
 
     // ------------------------------------------------------------- partidas
-    startNew() {
+    startNew(startLevel = 0) {
+      const z = Math.max(0, Math.min(RR.LEVELS.length - 1, startLevel | 0));
       this.score = 0;
-      this.lives = C.LIVES;
+      this.lives = C.LIVES + (this.char.extraLives || 0);
       this.totals = { chips: 0, kills: 0, modules: 0, deaths: 0, leaks: 0, bosses: 0 };
-      this.weapons = { spread: false };
+      // Se começar mais à frente, já tem a arma do primeiro chefe.
+      this.weapons = { spread: z > 1 };
       this.weapon = 'ecc';
-      this.bombs = C.BOMBS_START;
-      this.loadLevel(0);
+      this.bombs = Math.min(C.BOMBS_MAX, C.BOMBS_START + (this.char.extraBombs || 0));
+      this.startZone = z;
+      this.loadLevel(z);
       this.state = 'playing';
       this.emit('start');
-      this.emit('level', { index: 0, def: this.def });
+      this.emit('level', { index: z, def: this.def });
     }
 
     restartLevel() {
@@ -103,6 +114,7 @@
       this.overheat = false;
       this.waves = [];
       this.bombItems = [];
+      this.crumbles = new Map();
       this.levelStartBombs = this.bombs;
       this.chain = 0;
       this.chips = [];
@@ -168,6 +180,8 @@
         if (type === 'drone') {
           let ok = true;
           for (let r = 7; r <= 12; r++) if (this.tile(c, r) !== '.') ok = false;
+          // nunca por cima de buracos sem fundo (um golpe atirava-te para o vazio)
+          for (let d = -3; d <= 3; d++) if (!SOLID[this.tile(c + d, 15)]) ok = false;
           if (!ok) continue;
           this.enemies.push(this.makeEnemy('drone', { x: c * T, y: (8 + Math.floor(rnd() * 3)) * T }));
         } else {
@@ -186,7 +200,7 @@
     makePlayer(sp) {
       return {
         x: sp.x, y: sp.y - 38, w: 24, h: 38, vx: 0, vy: 0,
-        onGround: true, facing: 1, ball: false, jumped: false, airJumps: 1,
+        onGround: true, facing: 1, ball: false, jumped: false, airJumps: this.char ? this.char.airJumps : 1,
         coyote: 0, buffer: 0, invuln: 0, dead: false, deadT: 0,
         mud: false, padT: 0, run: 0, spin: 0, stepOffset: 0, shootFlash: 0,
       };
@@ -211,15 +225,33 @@
       const cfg = RR.BOSSES[kind];
       const w = cfg.w, h = cfg.h;
       const ground = 14 * T;
-      const homeY = kind === 'leak' ? ground - h : o.y + 8;
-      return {
-        kind, name: cfg.name, subtitle: cfg.subtitle,
+      const grounded = kind === 'leak' || kind === 'golem';
+      const homeY = grounded ? ground - h : o.y + 8;
+      const b = {
+        kind, name: cfg.name, subtitle: cfg.subtitle, grounded,
         x: o.x + T / 2 - w / 2, y: homeY - 380, homeY, w, h, groundY: ground,
         cx: o.x + T / 2, range: 0, vx: 0, vy: 0, onGround: false, hopT: 1.5, squash: 0,
         hp: cfg.hp, max: cfg.hp, phase: 1, state: 'waiting',
         t: 0, introT: 0, attackT: 2, hurtT: 0, shieldT: 0, shieldCd: 7, dashHitCd: 0, dyingT: 0, boomT: 0,
         nextDrop: cfg.hp - 12, lastAttack: '', spawn: { x: o.x, y: o.y },
       };
+      const ai = RR.BOSS_AI && RR.BOSS_AI[kind];
+      if (ai && ai.init) ai.init(this, b);
+      return b;
+    }
+
+    bossAI(b) { return (RR.BOSS_AI && b && RR.BOSS_AI[b.kind]) || null; }
+
+    // Chuva de lixo / meteoros do teto da arena (usada por vários chefes).
+    spawnRain(n, kind) {
+      const w = this.arena.x1 - this.arena.x0 - 2 * T;
+      for (let i = 0; i < n; i++) {
+        const x = this.arena.x0 + T + ((i + Math.random() * 0.8) / n) * w;
+        this.junk.push({ x: x - 14, y: -60, w: 28, h: 28, vy: 0, warnT: 0.9 + Math.random() * 0.5, rot: Math.random() * 6, kind });
+      }
+      const p = this.player;
+      this.junk.push({ x: p.x + p.w / 2 - 14, y: -60, w: 28, h: 28, vy: 0, warnT: 1.0, rot: 0, kind });
+      this.emit('junkWarn');
     }
 
     // ------------------------------------------------------------- tiles
@@ -282,7 +314,7 @@
         const row = Math.floor((e.y + e.h) / T);
         for (let c = left; c <= right; c++) {
           const ch = this.tile(c, row);
-          if (SOLID[ch] || (ch === '=' && prevBottom <= row * T + 0.5)) {
+          if (SOLID[ch] || (ONEWAY[ch] && prevBottom <= row * T + 0.5)) {
             e.y = row * T - e.h;
             e.vy = 0;
             return 'land';
@@ -304,11 +336,44 @@
       let found = null;
       for (let c = left; c <= right; c++) {
         const ch = this.tile(c, row);
-        if ((SOLID[ch] || (ch === '=' && feet <= row * T + 1)) && Math.abs(feet - row * T) < 1.5) {
-          if (!found || ch === '~' || ch === '>' || ch === '<') found = ch;
+        if ((SOLID[ch] || (ONEWAY[ch] && feet <= row * T + 1)) && Math.abs(feet - row * T) < 1.5) {
+          if (!found || ch === '~' || ch === '>' || ch === '<' || ch === '_' || ch === '+') found = ch;
         }
       }
       return found;
+    }
+
+    // Plataformas fragmentadas: tremem, desfazem-se e voltam passado um bocado.
+    startCrumble(p) {
+      const row = Math.floor((p.y + p.h + 1) / T);
+      const l = Math.floor((p.x + 2) / T), r = Math.floor((p.x + p.w - 2) / T);
+      for (let c = l; c <= r; c++) {
+        if (this.tile(c, row) !== '+') continue;
+        const key = c + ',' + row;
+        if (!this.crumbles.has(key)) {
+          this.crumbles.set(key, { c, r: row, state: 'shake', t: 0.6 });
+          this.hint('crumble');
+        }
+      }
+    }
+
+    updateCrumbles(dt) {
+      for (const [key, k] of this.crumbles) {
+        k.t -= dt;
+        if (k.t > 0) continue;
+        if (k.state === 'shake') {
+          this.tiles[k.r][k.c] = '.';
+          k.state = 'gone';
+          k.t = 3.2;
+          this.emit('crumble', { x: k.c * T + T / 2, y: k.r * T + 6 });
+        } else {
+          const p = this.player;
+          const occupied = overlap(p, { x: k.c * T, y: k.r * T, w: T, h: T });
+          if (occupied) { k.t = 0.3; continue; }
+          this.tiles[k.r][k.c] = '+';
+          this.crumbles.delete(key);
+        }
+      }
     }
 
     // ------------------------------------------------------------- ciclo
@@ -326,7 +391,10 @@
         if (this.overheat && this.heat < 35) { this.overheat = false; this.emit('cooled'); }
       }
       if (!this.hintsShown.shoot && this.time > 3.5) this.hint('shoot');
+      if (this.def.theme === 'ghost' && this.time > 1) this.hint('dark');
+      if (this.char.energyRegen && this.dashTime <= 0 && this.energy < 100) this.addEnergy(this.char.energyRegen * dt, true);
       for (const s of this.springs) s.comp = Math.max(0, s.comp - dt * 4);
+      this.updateCrumbles(dt);
 
       this.updatePlayer(dt);
       if (this.state !== 'playing') return;
@@ -357,17 +425,20 @@
       p.padT = Math.max(0, p.padT - dt);
       if (p.stepOffset) p.stepOffset = Math.abs(p.stepOffset) < 0.5 ? 0 : p.stepOffset * Math.pow(0.0005, dt);
 
+      const ch = this.char;
       const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-      let top = this.dashTime > 0 ? C.BOOST_TOP : C.TOP;
+      let top = (this.dashTime > 0 ? C.BOOST_TOP : C.TOP) * ch.speed;
       if (p.mud) top *= C.MUD_SPEED;
+      // No gelo acelera-se e trava-se muito pior (escorrega).
+      const acc = C.ACC * (p.ice ? 0.32 : 1), fric = C.FRICTION * (p.ice ? 0.08 : 1);
 
       if (p.onGround) {
         if (dir !== 0) {
-          if (p.vx * dir < 0) p.vx += dir * C.ACC * 2.2 * dt;
-          else if (p.vx * dir < top) p.vx = Math.min(p.vx * dir + C.ACC * dt, top) * dir;
+          if (p.vx * dir < 0) p.vx += dir * acc * 2.2 * dt;
+          else if (p.vx * dir < top) p.vx = Math.min(p.vx * dir + acc * dt, top) * dir;
           p.facing = dir;
         } else {
-          const f = C.FRICTION * dt;
+          const f = fric * dt;
           p.vx = Math.abs(p.vx) <= f ? 0 : p.vx - Math.sign(p.vx) * f;
         }
         if (Math.abs(p.vx) > top) p.vx -= Math.sign(p.vx) * (p.mud ? 2400 : 320) * dt;
@@ -382,7 +453,7 @@
       let fresh = false;
       if (inp.jumpPressed) { p.buffer = C.BUFFER; inp.jumpPressed = false; fresh = true; } else p.buffer -= dt;
       if (p.buffer > 0 && p.coyote > 0) {
-        p.vy = -C.JUMP * (p.mud ? C.MUD_JUMP : 1);
+        p.vy = -C.JUMP * ch.jump * (p.mud ? C.MUD_JUMP : 1);
         p.onGround = false;
         p.coyote = 0;
         p.buffer = 0;
@@ -393,7 +464,7 @@
       } else if (fresh && !p.onGround && p.airJumps > 0) {
         p.airJumps--;
         p.buffer = 0;
-        p.vy = -C.DOUBLE_JUMP * (p.mud ? 0.9 : 1);
+        p.vy = -C.DOUBLE_JUMP * ch.jump * (p.mud ? 0.9 : 1);
         p.ball = true;
         p.jumped = true;
         this.emit('doubleJump', { x: p.x + p.w / 2, y: p.y + p.h });
@@ -402,6 +473,9 @@
       if (!p.onGround && inp.down && p.vy > -100) p.vy += C.GRAVITY * 0.8 * dt;
 
       p.vy = Math.min(C.MAX_FALL, p.vy + C.GRAVITY * dt);
+      // O Pato Depurador plana ao manter o salto premido.
+      p.gliding = !!(ch.glide && !p.onGround && inp.jump && p.vy > 120 && !inp.down);
+      if (p.gliding) { p.vy = 120; p.ball = false; }
 
       const steps = Math.max(1, Math.ceil((Math.max(Math.abs(p.vx), Math.abs(p.vy)) * dt) / 10));
       const sdt = dt / steps;
@@ -418,11 +492,14 @@
         if (wasAir && fallSpeed > 500) this.emit('land', { x: p.x + p.w / 2, y: p.y + p.h, v: fallSpeed });
         p.ball = false;
         p.jumped = false;
-        p.airJumps = 1;
+        p.airJumps = this.char.airJumps;
         this.chain = 0;
       }
       p.mud = under === '~';
       if (p.mud) this.hint('mud');
+      p.ice = under === '_';
+      if (p.ice) this.hint('ice');
+      if (under === '+') this.startCrumble(p);
       if ((under === '>' || under === '<') && p.padT <= 0) {
         const d = under === '>' ? 1 : -1;
         p.vx = d * Math.max(Math.abs(p.vx), C.PAD_SPEED);
@@ -439,7 +516,12 @@
       const t0 = Math.floor(p.y / T), b0 = Math.floor((p.y + p.h) / T);
       for (let rr = t0; rr <= b0; rr++) {
         for (let cc = l; cc <= r; cc++) {
-          if (this.tile(cc, rr) === '^' && overlap(p, { x: cc * T + 5, y: rr * T + 12, w: T - 10, h: T - 12 })) {
+          const tc = this.tile(cc, rr);
+          if (tc === '^' && overlap(p, { x: cc * T + 5, y: rr * T + 12, w: T - 10, h: T - 12 })) {
+            this.hurt(true);
+            if (this.state !== 'playing' || p.dead) return;
+          } else if (tc === '%' && overlap(p, { x: cc * T + 3, y: rr * T + 10, w: T - 6, h: T - 10 })) {
+            this.hint('liquid');
             this.hurt(true);
             if (this.state !== 'playing' || p.dead) return;
           }
@@ -478,7 +560,7 @@
           const rowFeet = Math.floor((e.y + e.h + 2) / T);
           const rowBody = Math.floor((e.y + e.h - 2) / T);
           const below = this.tile(col, rowFeet);
-          let blocked = this.solidAt(col, rowBody) || this.tile(col, rowBody) === '^' || !(SOLID[below] || below === '=') || nx < 0 || nx + e.w > this.worldW;
+          let blocked = this.solidAt(col, rowBody) || this.tile(col, rowBody) === '^' || !(SOLID[below] || ONEWAY[below]) || nx < 0 || nx + e.w > this.worldW;
           if (this.arena && e.summoned && (nx < this.arena.x0 + T || nx + e.w > this.arena.x1 - T)) blocked = true;
           if (blocked) e.dir *= -1; else e.x = nx;
           if (e.type === 'spiky' && Math.abs(p.x - e.x) < 300) this.hint('spiky');
@@ -486,6 +568,7 @@
         if (p.dead || !overlap(p, e)) continue;
         const stomp = p.vy > 0 && p.y + p.h - p.vy * dt <= e.y + 12;
         if (this.dashTime > 0) { this.killEnemy(e, 'dash'); continue; }
+        if (this.char.bugTouch && e.type === 'bug') { this.killEnemy(e, 'debug'); continue; }
         if (e.type === 'spiky') { this.hurt(false, e); if (this.state !== 'playing' || p.dead) return; continue; }
         if (stomp || p.ball) {
           this.killEnemy(e, 'hit');
@@ -494,7 +577,7 @@
             p.ball = true;
             p.jumped = false;
             p.onGround = false;
-            p.airJumps = 1;
+            p.airJumps = this.char.airJumps;
           }
         } else {
           this.hurt(false, e);
@@ -533,6 +616,11 @@
         b.hp = b.max;
         b.range = Math.max(80, (this.arena.x1 - this.arena.x0) / 2 - b.w / 2 - 50);
         if (this.bombs < C.BOMBS_MAX) this.bombs++;
+        // Chips de RAM espalhados pela arena: dão proteção para o combate.
+        const aw = this.arena.x1 - this.arena.x0;
+        for (let i = 0; i < 10; i++) {
+          this.scatter.push({ x: this.arena.x0 + 2 * T + (i + 0.5) * ((aw - 4 * T) / 10), y: 6 * T, vx: 0, vy: 0, age: 0, life: 40, free: true });
+        }
         this.emit('bossIntro', { boss: b });
         this.hint('boss');
       }
@@ -545,8 +633,10 @@
       if (b.hurtT > 0) b.hurtT -= dt;
       if (b.dashHitCd > 0) b.dashHitCd -= dt;
       const p = this.player;
+      const ai = this.bossAI(b);
       if (b.state === 'intro') {
-        if (b.kind === 'leak') {
+        if (ai) { b.hx = b.x + b.w / 2; b.hy = b.y + b.h / 2; if (b.hist) b.hist.push({ x: b.hx, y: b.hy }); }
+        if (b.grounded) {
           b.vy = Math.min(1400, b.vy + 2600 * dt);
           b.y += b.vy * dt;
           if (b.y >= b.homeY) {
@@ -585,6 +675,8 @@
       const speed = [0.55, 0.75, 1.0][b.phase - 1];
       if (b.kind === 'leak') {
         this.updateLeakBoss(b, dt);
+      } else if (ai) {
+        ai.update(this, b, dt);
       } else if (b.kind === 'hive') {
         b.x = b.cx - b.w / 2 + Math.sin(b.t * speed) * b.range;
         b.y = b.homeY + Math.sin(b.t * speed * 2) * 46;
@@ -592,8 +684,8 @@
         b.x = b.cx - b.w / 2 + Math.sin(b.t * speed) * b.range;
         b.y = b.homeY + Math.sin(b.t * 1.7) * 22 + (b.phase === 3 ? Math.sin(b.t * 5.3) * 8 : 0);
       }
-      if (b.kind === 'leak') {
-        // o Rei das Fugas não tem escudo
+      if (b.kind === 'leak' || (ai && !ai.shield)) {
+        // estes chefes não usam escudo
       } else if (b.shieldT > 0) {
         b.shieldT -= dt;
         if (b.shieldT <= 0) this.emit('shieldDown');
@@ -611,11 +703,17 @@
         this.bossAttack(b);
         b.attackT = [2.4, 1.9, 1.45][b.phase - 1] + Math.random() * 0.6;
       }
-      if (!p.dead && overlap(p, this.bossBox(b))) {
+      // o corpo do verme (segmentos) também magoa
+      if (ai && ai.hurtRects && !p.dead && this.dashTime <= 0) {
+        for (const r of ai.hurtRects(b)) if (overlap(p, r)) { this.hurt(false, r); break; }
+        if (p.dead || this.state !== 'playing') return;
+      }
+      const touchable = !ai || !ai.canTouch || ai.canTouch(b);
+      if (!p.dead && touchable && overlap(p, this.bossBox(b))) {
         const stomp = b.kind === 'leak' && p.vy > 0 && p.y + p.h - p.vy * dt <= b.y + 26;
         if (this.dashTime > 0 || stomp) {
           if (b.dashHitCd <= 0) { b.dashHitCd = 0.5; this.bossHit(stomp ? 3 : 4, p.x + p.w / 2, p.y + p.h, true); }
-          if (stomp) { p.vy = -900; p.ball = true; p.airJumps = 1; p.jumped = false; }
+          if (stomp) { p.vy = -900; p.ball = true; p.airJumps = this.char.airJumps; p.jumped = false; }
           else { p.vx = (p.x + p.w / 2 < b.x + b.w / 2 ? -1 : 1) * 420; p.vy = -500; }
         } else this.hurt(false, b);
       }
@@ -652,9 +750,15 @@
       }
     }
 
-    bossBox(b) { return { x: b.x + 12, y: b.y + 8, w: b.w - 24, h: b.h - 10 }; }
+    bossBox(b) {
+      const ai = this.bossAI(b);
+      if (ai && ai.box) return ai.box(b);
+      return { x: b.x + 12, y: b.y + 8, w: b.w - 24, h: b.h - 10 };
+    }
 
     bossAttack(b) {
+      const ai = this.bossAI(b);
+      if (ai) { ai.attack(this, b); return; }
       const p = this.player;
       const TABLE = {
         module: [['bits', 'bits', 'rain'], ['bits', 'rain', 'summon', 'bits'], ['bits', 'laser', 'rain', 'summon', 'laser', 'bits']],
@@ -700,14 +804,7 @@
         }
         this.emit('bossShot', { x: cx, y: cy });
       } else if (a === 'rain') {
-        const n = 4 + b.phase * 2;
-        const w = this.arena.x1 - this.arena.x0 - 2 * T;
-        for (let i = 0; i < n; i++) {
-          const x = this.arena.x0 + T + ((i + Math.random() * 0.8) / n) * w;
-          this.junk.push({ x: x - 14, y: -60, w: 28, h: 28, vy: 0, warnT: 0.9 + Math.random() * 0.5, rot: Math.random() * 6 });
-        }
-        this.junk.push({ x: p.x + p.w / 2 - 14, y: -60, w: 28, h: 28, vy: 0, warnT: 1.0, rot: 0 });
-        this.emit('junkWarn');
+        this.spawnRain(4 + b.phase * 2, 'junk');
       } else if (a === 'summon') {
         const types = b.kind === 'leak' ? ['leak', 'leak', 'bug'] : ['bug', 'leak', 'spiky'];
         for (const side of [0, 1]) {
@@ -727,6 +824,8 @@
     bossHit(n, x, y, force) {
       const b = this.boss;
       if (!b || b.state !== 'fight') return false;
+      const ai = this.bossAI(b);
+      if (ai && ai.canHit && !ai.canHit(b) && !force) { this.emit('deflect', { x, y }); return false; }
       if (b.shieldT > 0 && !force) { this.emit('deflect', { x, y }); return false; }
       b.hp = Math.max(0, b.hp - n);
       b.hurtT = 0.12;
@@ -774,7 +873,7 @@
       if (this.shootCd > 0) return;
       if (this.overheat) { this.emit('denied', { what: 'heat' }); this.shootCd = 0.25; return; }
       const spread = this.weapon === 'spread' && this.weapons.spread;
-      this.shootCd = spread ? 0.28 : C.SHOOT_CD;
+      this.shootCd = (spread ? 0.28 : C.SHOOT_CD) * (this.char.fireMul || 1);
       const sx = p.x + p.w / 2 + p.facing * 12, sy = p.y + 14;
       let ang = p.facing > 0 ? 0 : Math.PI;
       if (this.input.down && !p.onGround) ang += p.facing * 0.7;
@@ -787,7 +886,7 @@
       const angles = spread ? [ang - 0.2, ang, ang + 0.2] : [ang];
       for (const a of angles) this.shots.push({ x: sx, y: sy, vx: Math.cos(a) * C.SHOT_SPEED, vy: Math.sin(a) * C.SHOT_SPEED, life: 1.1, spread });
       p.shootFlash = 0.08;
-      this.heat += (spread ? C.HEAT_SPREAD : C.HEAT_ECC) * (this.arenaLocked ? 0.55 : 1);
+      this.heat += (spread ? C.HEAT_SPREAD : C.HEAT_ECC) * (this.arenaLocked ? 0.55 : 1) * (this.char.heatMul || 1);
       if (this.heat >= 100) {
         this.heat = 100;
         this.overheat = true;
@@ -839,6 +938,10 @@
           for (const e of this.enemies) if (e.alive && overlap(box, e)) { this.killEnemy(e, 'shot'); dead = true; break; }
           const b = this.boss;
           if (!dead && b && b.state === 'fight' && overlap(box, this.bossBox(b))) { this.bossHit(1, s.x, s.y); dead = true; }
+          const ai = this.bossAI(b);
+          if (!dead && ai && ai.blockers && b.state === 'fight') {
+            for (const r of ai.blockers(b)) if (overlap(box, r)) { this.emit('deflect', { x: s.x, y: s.y }); dead = true; this.hint('worm'); break; }
+          }
           // os disparos anulam bits inimigos
           if (!dead) {
             for (let j = this.bullets.length - 1; j >= 0; j--) {
@@ -993,7 +1096,7 @@
           p.onGround = false;
           p.ball = true;
           p.jumped = false;
-          p.airJumps = 1;
+          p.airJumps = this.char.airJumps;
           s.comp = 1;
           this.emit('spring', { x: s.x + s.w / 2, y: s.y });
           this.hint('spring');
@@ -1021,7 +1124,7 @@
     garbageCollect() {
       if (this.state !== 'playing' || this.player.dead) return;
       if (this.gcCooldown > 0) { this.emit('denied', { what: 'gc' }); return; }
-      this.gcCooldown = C.GC_COOLDOWN;
+      this.gcCooldown = C.GC_COOLDOWN * (this.char.gcMul || 1);
       const p = this.player;
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
       let count = 0;
@@ -1045,8 +1148,9 @@
       this.emit('dash', { x: p.x + p.w / 2, y: p.y + p.h / 2 });
     }
 
-    addEnergy(v) {
+    addEnergy(v, raw) {
       if (this.dashTime > 0) return;
+      if (!raw) v *= this.char.energyMul || 1;
       const before = this.energy;
       this.energy = Math.min(100, this.energy + v);
       if (before < 100 && this.energy >= 100) { this.emit('energyFull'); this.hint('energy'); }
@@ -1056,7 +1160,8 @@
       const p = this.player;
       if (p.dead || p.invuln > 0 || this.dashTime > 0) return;
       if (this.ram <= 0) { this.die(spikes ? 'spikes' : 'enemy'); return; }
-      const lost = this.ram;
+      // A Capivara Zen só perde metade da RAM.
+      const lost = this.char.keepHalf ? Math.ceil(this.ram / 2) : this.ram;
       const n = Math.min(lost, C.SCATTER_MAX);
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
       for (let i = 0; i < n; i++) {
@@ -1064,7 +1169,7 @@
         const sp = 320 + (i % 3) * 90;
         this.scatter.push({ x: cx, y: cy - 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, age: 0, life: C.SCATTER_LIFE });
       }
-      this.ram = 0;
+      this.ram -= lost;
       p.invuln = C.INVULN;
       const away = src ? (cx < src.x + (src.w || 0) / 2 ? -1 : 1) : -p.facing;
       p.vx = away * 300;
@@ -1072,7 +1177,7 @@
       p.onGround = false;
       p.ball = false;
       p.jumped = false;
-      p.airJumps = 1;
+      p.airJumps = this.char.airJumps;
       this.emit('hurt', { x: cx, y: cy, lost });
       this.hint(this.hintsShown.hurt ? 'noRam' : 'hurt');
     }
