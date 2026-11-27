@@ -1,22 +1,34 @@
 /* =========================================================================
    RAM RUSH — Ranking online para todos os jogadores (Firestore, via REST)
-   - Cada navegador entra com uma sessão anónima do Firebase (sem dados pessoais).
-   - Cada conta de jogador deste navegador tem um registo: <uid>_<nome>.
+   - Não usa contas nem dados pessoais: cada navegador tem um identificador
+     aleatório e cada conta de jogador desse navegador tem um registo
+     "<identificador>_<nome>" na coleção ramrush_scores.
+   - As regras do Firestore só deixam criar registos válidos e só deixam
+     SUBIR a pontuação (nunca baixar, apagar ou mudar o nome).
    - A posição mundial calcula-se contando quantos jogadores têm mais pontos.
    ========================================================================= */
 (function () {
   'use strict';
   const RR = (window.RR = window.RR || {});
-  const AUTH_KEY = 'ramrush.online.auth.v1';
+  const DEVICE_KEY = 'ramrush.device.v1';
   const TIMEOUT = 9000;
-  const COLLECTION = 'scores';
 
   const cfg = () => RR.ONLINE_CONFIG || {};
-  const read = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
-  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignorar */ } };
   const slug = (name) => String(name || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9_-]+/g, '_').slice(0, 30) || 'jogador';
   const clean = (name) => String(name || '').replace(/[<>"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 14);
+
+  function deviceId() {
+    let id = null;
+    try { id = localStorage.getItem(DEVICE_KEY); } catch (e) { /* sem storage */ }
+    if (!id || !/^[a-z0-9]{16,40}$/.test(id)) {
+      const a = new Uint8Array(12);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      id = Array.from(a, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 20);
+      try { localStorage.setItem(DEVICE_KEY, id); } catch (e) { /* ignorar */ }
+    }
+    return id;
+  }
 
   async function http(url, opts = {}) {
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -34,71 +46,44 @@
     } finally { if (timer) clearTimeout(timer); }
   }
 
-  function fromFields(doc) {
+  function fromDoc(doc) {
     const f = (doc && doc.fields) || {};
     const v = (x) => (x == null ? undefined : x.stringValue ?? (x.integerValue != null ? Number(x.integerValue) : x.booleanValue ?? x.doubleValue));
     return {
       id: doc && doc.name ? doc.name.split('/').pop() : '',
       name: v(f.name) || '???', score: v(f.score) || 0, zone: v(f.zone) || 1,
-      char: v(f.char) || 'bit', won: !!v(f.won), date: v(f.date) || '', uid: v(f.uid) || '',
+      char: v(f.char) || 'bit', won: !!v(f.won), date: v(f.date) || '',
     };
   }
 
   RR.Online = {
-    enabled() { const c = cfg(); return !!(c.apiKey && c.projectId); },
+    enabled() { return !!cfg().projectId; },
+    coll() { return cfg().collection || 'ramrush_scores'; },
     base() { return `https://firestore.googleapis.com/v1/projects/${cfg().projectId}/databases/(default)/documents`; },
-
-    // Sessão anónima (guardada no navegador e renovada automaticamente).
-    async session() {
-      const key = cfg().apiKey;
-      let a = read(AUTH_KEY);
-      if (a && a.project === cfg().projectId && a.exp > Date.now() + 60000) return a;
-      if (a && a.project === cfg().projectId && a.refresh) {
-        try {
-          const r = await http(`https://securetoken.googleapis.com/v1/token?key=${key}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(a.refresh),
-          });
-          a = { id: r.id_token, refresh: r.refresh_token, uid: r.user_id, exp: Date.now() + Number(r.expires_in) * 1000, project: cfg().projectId };
-          write(AUTH_KEY, a);
-          return a;
-        } catch (e) { /* cria uma sessão nova */ }
-      }
-      const r = await http(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${key}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ returnSecureToken: true }),
-      });
-      a = { id: r.idToken, refresh: r.refreshToken, uid: r.localId, exp: Date.now() + Number(r.expiresIn) * 1000, project: cfg().projectId };
-      write(AUTH_KEY, a);
-      return a;
-    },
-
-    async docIdFor(name) { const s = await this.session(); return s.uid + '_' + slug(name); },
+    key() { return cfg().apiKey ? `?key=${cfg().apiKey}` : ''; },
+    docId(name) { return deviceId() + '_' + slug(name); },
 
     async getMine(name) {
-      const id = await this.docIdFor(name);
-      try { return fromFields(await http(`${this.base()}/${COLLECTION}/${id}`)); } catch (e) { if (e.status === 404) return null; throw e; }
+      try { return fromDoc(await http(`${this.base()}/${this.coll()}/${this.docId(name)}${this.key()}`)); }
+      catch (e) { if (e.status === 404) return null; throw e; }
     },
 
     // Envia a pontuação (só se for melhor do que a já registada) e devolve a posição mundial.
     async submit(name, score, data = {}) {
       score = Math.round(score) || 0;
-      const s = await this.session();
       const mine = await this.getMine(name);
       let improved = false;
       if (score > 0 && (!mine || score > mine.score)) {
-        const id = s.uid + '_' + slug(name);
         const fields = {
-          name: { stringValue: clean(name) || 'Anónimo' },
-          score: { integerValue: String(score) },
-          zone: { integerValue: String(data.zone || 1) },
-          char: { stringValue: String(data.char || 'bit') },
+          name: { stringValue: mine ? mine.name : (clean(name).length >= 2 ? clean(name) : 'Anónimo') },
+          score: { integerValue: String(Math.min(5000000, score)) },
+          zone: { integerValue: String(Math.max(1, Math.min(10, data.zone || 1))) },
+          char: { stringValue: String(data.char || 'bit').slice(0, 10) },
           won: { booleanValue: !!data.won },
           date: { stringValue: new Date().toISOString().slice(0, 10) },
-          uid: { stringValue: s.uid },
         };
-        await http(`${this.base()}/${COLLECTION}/${id}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.id },
-          body: JSON.stringify({ fields }),
+        await http(`${this.base()}/${this.coll()}/${this.docId(name)}${this.key()}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }),
         });
         improved = true;
       }
@@ -107,11 +92,11 @@
     },
 
     async aggregate(where) {
-      const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: COLLECTION }] }, aggregations: [{ alias: 'n', count: {} }] } };
+      const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: this.coll() }] }, aggregations: [{ alias: 'n', count: {} }] } };
       if (where) q.structuredAggregationQuery.structuredQuery.where = where;
-      const r = await http(`${this.base()}:runAggregationQuery`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q) });
+      const r = await http(`${this.base()}:runAggregationQuery${this.key()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q) });
       const row = Array.isArray(r) ? r.find((x) => x.result) : null;
-      return row ? Number(row.result.aggregateFields.n.integerValue) : 0;
+      return row ? Number(row.result.aggregateFields.n.integerValue || 0) : 0;
     },
     // Quantos jogadores têm mais pontos (= posição, a começar em 0).
     countAbove(score) {
@@ -120,9 +105,9 @@
     count() { return this.aggregate(null); },
 
     async page(offset, n) {
-      const q = { structuredQuery: { from: [{ collectionId: COLLECTION }], orderBy: [{ field: { fieldPath: 'score' }, direction: 'DESCENDING' }], offset, limit: n } };
-      const r = await http(`${this.base()}:runQuery`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q) });
-      return (Array.isArray(r) ? r : []).filter((x) => x.document).map((x) => fromFields(x.document));
+      const q = { structuredQuery: { from: [{ collectionId: this.coll() }], orderBy: [{ field: { fieldPath: 'score' }, direction: 'DESCENDING' }], offset, limit: n } };
+      const r = await http(`${this.base()}:runQuery${this.key()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q) });
+      return (Array.isArray(r) ? r : []).filter((x) => x.document).map((x) => fromDoc(x.document));
     },
 
     // A minha linha no ranking mundial (para mostrar sempre em baixo).

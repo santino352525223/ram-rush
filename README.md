@@ -5,6 +5,32 @@ Escolhe uma de **6 personagens**, corre pela placa-mãe a apanhar os **chips de 
 espalhados pelo caminho, enfrenta bugs, fugas de memória e malware, atravessa **10 zonas**,
 derrota **7 chefes** e entrega os dados ao **CPU**. As melhores pontuações entram sozinhas no **TOP 10**.
 
+## Novidades da versão 4
+
+- **Ranking mundial online:** todas as pessoas que jogam (na página do GitHub Pages ou com o ficheiro) aparecem no mesmo ranking.
+  - A primeira página mostra o **top 10**; com «Seguintes ▶», «◀ Anteriores» ou «Ir para #» vês os outros jogadores até ao **top 10 000**.
+  - **A tua posição aparece sempre em baixo**, sem teres de a procurar (ex.: «🥈 #2 · A tua posição»), com um botão para ires à tua página.
+  - No fim de cada partida a pontuação é enviada sozinha e aparece «🌍 Posição mundial: #N».
+  - Há também o separador «💻 Este computador» com o ranking local (funciona sem internet).
+- **Armas novas:** Laser DMA (atravessa todos os inimigos) e Mísseis Prefetch (teleguiados). Troca com `Tab` ou `1`–`4`.
+- **Habilidade especial de cada personagem** (tecla `V`): Escudo ECC, Sprint Turbo, Banho Zen, Depuração Total, Solo de Teclado e Sobrecarga.
+
+### Como funciona o ranking online (e porque é seguro)
+
+Usa o **Cloud Firestore** (Firebase, plano gratuito), coleção `ramrush_scores`, configurado em `js/online-config.js`.
+Não há contas nem dados pessoais: cada navegador gera um identificador aleatório. As regras do Firestore só permitem:
+
+```
+match /ramrush_scores/{id} {
+  allow read: if true;                                   // todos podem ver o ranking
+  allow create: if valido(dados);                        // registos com nome, pontos, zona… válidos
+  allow update: if valido(dados) && pontos SUBIRAM && nome igual;
+  allow delete: if false;                                // ninguém apaga nada
+}
+```
+
+Testado: baixar pontos, mudar o nome, pontuações absurdas, campos extra, apagar ou escrever noutra coleção são **recusados** (erro 403).
+
 ## Novidades da versão 3
 
 - **Contas de jogador:** ao abrir o jogo escreves o teu nome. Cada nome é uma conta com o seu recorde,
@@ -131,7 +157,9 @@ css/styles.css      Estilos e animações (estética cyber-hardware)
 js/data.js          Física, troços de nível em ASCII, zonas, chefes, temas visuais e curiosidades
 js/characters.js    As 6 personagens: habilidades e desenho
 js/bosses.js        Comportamento e desenho dos chefes Verme, Golem, Fantasma e Dragão
-js/ranking.js       Contas de jogador, ranking TOP 10 e progresso guardado
+js/ranking.js       Contas de jogador, ranking deste computador (até ao top 10 000) e progresso guardado
+js/online.js        Ranking mundial (Cloud Firestore via REST, sem bibliotecas externas)
+js/online-config.js Projeto Firebase usado pelo ranking mundial
 js/game.js          Lógica: física com subpassos, salto duplo, colisões, inimigos, armas, bombas e chefes
 js/renderer.js      Canvas 2D: câmara com zoom nas arenas, parallax em 3 camadas, iluminação, BIT, inimigos e chefes
 js/particles.js     Partículas, anéis, textos flutuantes, confettis, flashes e tremor do ecrã
